@@ -1,0 +1,8 @@
+{
+  "name": "Edu World",
+  "description": "A modern, AI-powered Learning Management System featuring personalized tutoring, course tracking, and interactive lessons.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edu World - Pro Learning</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%238ba3f9'/%3E%3Cstop offset='100%25' stop-color='%235a34a7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='128' fill='url(%23g)'/%3E%3Cpath d='M256 380c-30-24-70-40-112-40H80V110h64c40 0 80 16 112 40 32-24 72-40 112-40h64v230h-64c-42 0-82 16-112 40z' fill='none' stroke='white' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M256 150v230' fill='none' stroke='white' stroke-width='36' stroke-linecap='round'/%3E%3C/svg%3E">
+    
+    <script>
+      /** 
+       * CRITICAL GLOBAL POLYFILLS
+       * Must execute before any module scripts load.
+       */
+      window.process = { 
+        env: { API_KEY: "" },
+        nextTick: (fn) => setTimeout(fn, 0)
+      };
+      window.global = window;
+      window.globalThis.process = window.process;
+
+      // Diagnostic Logging
+      console.log("LMS: Booting System...");
+
+      // Global crash listener for blank page debugging
+      window.addEventListener('error', function(event) {
+        console.error("LMS Critical Boot Error:", event.error || event.message);
+        const errorDiv = document.getElementById('critical-error');
+        if (errorDiv) {
+          errorDiv.style.display = 'flex';
+          const msg = document.getElementById('error-msg');
+          if (msg) msg.textContent = event.message || "Runtime Script Error";
+        }
+      });
+
+      // Catch unhandled promise rejections (often cause of blank screens in React)
+      window.addEventListener('unhandledrejection', function(event) {
+        console.error("LMS Unhandled Rejection:", event.reason);
+        const errorDiv = document.getElementById('critical-error');
+        if (errorDiv) {
+          errorDiv.style.display = 'flex';
+          const msg = document.getElementById('error-msg');
+          if (msg) msg.textContent = "Neural Link Timeout: " + (event.reason?.message || "Internal Connection Lost");
+        }
+      });
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous">
+    
+    <!-- KaTeX for Mathematics -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+
+    <!-- Quill Framework -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://cdn.quilljs.com/1.3.7/quill.js" crossorigin="anonymous"></script>
+    
+    <script>
+      if (typeof window.katex === 'undefined' && typeof katex !== 'undefined') {
+        window.katex = window.katex || katex;
+      }
+
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              indigo: {
+                50: 'var(--brand-50)', 100: 'var(--brand-100)', 200: 'var(--brand-200)', 300: 'var(--brand-300)',
+                400: 'var(--brand-400)', 500: 'var(--brand-500)', 600: 'var(--brand-600)', 700: 'var(--brand-700)',
+                800: 'var(--brand-800)', 900: 'var(--brand-900)', 950: 'var(--brand-950)',
+              },
+              slate: { 950: 'var(--bg-main)', 900: 'var(--bg-surface)' }
+            }
+          }
+        }
+      }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        
+        :root {
+          --brand-50: #f5f3ff; --brand-100: #ede9fe; --brand-200: #ddd6fe; --brand-300: #c4b5fd;
+          --brand-400: #a78bfa; --brand-500: #8b5cf6; --brand-600: #7c3aed; --brand-700: #6d28d9;
+          --brand-800: #5b21b6; --brand-900: #4c1d95; --brand-950: #2e1065;
+          --bg-main: #020617; --bg-surface: #0f172a;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: #f1f5f9;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            overflow-x: hidden; 
+        }
+
+        #critical-error {
+            position: fixed;
+            inset: 0;
+            background: #020617;
+            color: #ef4444;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        #root {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+        }
+    </style>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@19.0.0",
+        "react-dom": "https://esm.sh/react-dom@19.0.0",
+        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+        "react/": "https://esm.sh/react@19.0.0/",
+        "react-dom/": "https://esm.sh/react-dom@19.0.0/",
+        "@google/genai": "https://esm.sh/@google/genai@1.34.0"
+      }
+    }
+    </script>
+</head>
+<body>
+    <div id="root">
+      <!-- Minimal fallback loader while JS parses -->
+      <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #020617;">
+        <div style="width: 20px; height: 20px; border: 2px solid #1e293b; border-top-color: #6366f1; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      </div>
+    </div>
+
+    <!-- Fallback error UI -->
+    <div id="critical-error">
+        <i class="fas fa-triangle-exclamation text-4xl mb-4"></i>
+        <h1 class="text-xl font-bold mb-2 uppercase tracking-tighter">Neural System Load Failure</h1>
+        <p id="error-msg" class="text-[10px] font-mono opacity-60 max-w-md border border-red-500/20 p-4 bg-red-500/5 rounded-xl mt-4"></p>
+        <div class="flex gap-4 mt-8">
+          <button onclick="location.reload()" class="px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all">Retry Link</button>
+          <button onclick="localStorage.clear(); location.reload();" class="px-6 py-3 bg-slate-900 border border-slate-800 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">Reset Data</button>
+        </div>
+    </div>
+
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+
+    <script type="module" src="./index.tsx"></script>
+</body>
+</html>
