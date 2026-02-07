@@ -1,11 +1,11 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ChatMessage, QuizAttempt, Course } from "../types";
 
 // Factory to ensure AI is initialized only when needed
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+// Always use process.env.API_KEY directly as a named parameter
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY as string });
 
-// Audio Helper Functions
+// Audio Helper Functions manually implemented as per guidelines
 export function encodeAudio(bytes: Uint8Array) {
   let binary = '';
   const len = bytes.byteLength;
@@ -25,6 +25,7 @@ export function decodeAudio(base64: string) {
   return bytes;
 }
 
+// Custom PCM decoding for Live API raw audio streams
 export async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -122,6 +123,7 @@ export const getTutorResponse = async (
       }
     });
 
+    // Directly access text property (not a method)
     const text = response.text || "I apologize, I encountered an issue processing your request.";
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const urls = groundingChunks
@@ -196,6 +198,7 @@ export const generateCourseOutline = async (topic: string): Promise<Partial<Cour
       }
     });
 
+    // Directly access text property
     const data = JSON.parse(response.text);
     return {
       ...data,

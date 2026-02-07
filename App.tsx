@@ -1,18 +1,19 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Explore from './components/Explore';
 import CourseView from './components/CourseView';
 import AdminPanel from './components/AdminPanel';
 import Profile from './components/Profile';
-import Auth from './components/Auth';
 import CourseDetails from './components/CourseDetails';
 import UserManagement from './components/UserManagement';
 import Downloads from './components/Downloads';
+import Auth from './components/Auth';
 import { AppRoute, Course, User, ThemeConfig, Resource } from './types';
 import { MOCK_COURSES } from './constants';
 import { getAllCoursesFromDB, saveCourseToDB, deleteCourseFromDB } from './services/storage';
+import { supabaseAuth, getSupabaseClient } from './services/supabase';
 
 const THEME_ACCENTS: Record<string, Record<string, string>> = {
   indigo: { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
@@ -75,24 +76,6 @@ const SeasonalEffects: React.FC<{ theme: ThemeConfig }> = ({ theme }) => {
       </div>
     );
   }
-  if (theme.accentColor === 'eid') {
-    return (
-      <div className="seasonal-overlay pointer-events-none fixed inset-0 z-0">
-        {[...Array(30)].map((_, i) => (
-          <div key={i} className="absolute text-yellow-400 animate-twinkle text-[8px]"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${Math.random() * 3}s`,
-              opacity: Math.random() * 0.7 + 0.3
-            }}
-          >
-            <i className="fas fa-star"></i>
-          </div>
-        ))}
-      </div>
-    );
-  }
   return null;
 };
 
@@ -100,9 +83,7 @@ const MobileNav: React.FC<{ currentRoute: AppRoute, setRoute: (r: AppRoute) => v
   const items = [
     { id: AppRoute.DASHBOARD, icon: 'fa-house', label: 'Home' },
     { id: AppRoute.COURSES, icon: 'fa-compass', label: 'Explore' },
-    ...(user.role === 'admin' ? [
-      { id: AppRoute.ADMIN, icon: 'fa-shield-halved', label: 'Admin' }
-    ] : []),
+    ...(user.role === 'admin' ? [{ id: AppRoute.ADMIN, icon: 'fa-shield-halved', label: 'Admin' }] : []),
     { id: AppRoute.PROFILE, icon: 'fa-user', label: 'Profile' }
   ];
 
@@ -131,29 +112,69 @@ const App: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [isEditorActive, setIsEditorActive] = useState(false);
-  const [isWindowFocused, setIsWindowFocused] = useState(true);
-  const [theme, setTheme] = useState<ThemeConfig>({
-    accentColor: 'indigo',
-    backgroundStyle: 'slate',
-  });
+  const [theme, setTheme] = useState<ThemeConfig>({ accentColor: 'indigo', backgroundStyle: 'slate' });
   const [registeredUsers, setRegisteredUsers] = useState<User[]>([]);
 
   const [selectedSubjectId, setSelectedSubjectId] = useState<string | null>(null);
   const [selectedSubSubjectId, setSelectedSubSubjectId] = useState<string | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const handleFocus = () => setIsWindowFocused(true);
-    const handleBlur = () => setIsWindowFocused(false);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
+  const authTimeoutRef = useRef<number | null>(null);
+
+  // Sync Extended User Data
+  const syncExtendedUser = useCallback(async (sbUser: any) => {
+    if (!sbUser) {
+      setUser(null);
+      setIsAuthLoading(false);
+      return;
+    }
+    
+    const sb = getSupabaseClient();
+    let profile: Partial<User> = {};
+    
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('users').select('data').eq('id', sbUser.id).maybeSingle();
+        if (data && !error) profile = data.data;
+      } catch (e) {
+        console.warn("User profile sync failed:", e);
+      }
+    }
+
+    const mergedUser: User = {
+      id: sbUser.id,
+      name: profile.name || sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || "Learner",
+      avatar: profile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${sbUser.id}`,
+      role: profile.role || (sbUser.email === 'shajidrahim007@gmail.com' ? 'admin' : 'student'),
+      enrolledCourses: profile.enrolledCourses || [],
+      quizScores: profile.quizScores || {}
     };
+
+    setUser(mergedUser);
+    localStorage.setItem('eduworld_user', JSON.stringify(mergedUser));
+    setIsAuthLoading(false);
   }, []);
+
+  useEffect(() => {
+    authTimeoutRef.current = window.setTimeout(() => {
+      if (isAuthLoading) {
+        setIsAuthLoading(false);
+      }
+    }, 5000);
+
+    const unsub = supabaseAuth.onAuthStateChange((session) => {
+      if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
+      syncExtendedUser(session?.user || null);
+    });
+    
+    return () => {
+      unsub();
+      if (authTimeoutRef.current) clearTimeout(authTimeoutRef.current);
+    };
+  }, [syncExtendedUser]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -167,26 +188,6 @@ const App: React.FC = () => {
     localStorage.setItem('eduworld_theme', JSON.stringify(theme));
   }, [theme]);
 
-  const checkCourseExpirations = useCallback((currentUser: User, allCourses: Course[]) => {
-    if (!currentUser) return null;
-    const enrolled = currentUser.enrolledCourses || [];
-    if (!enrolled.length) return currentUser;
-    
-    const now = new Date();
-    const validEnrolledIds = enrolled.filter(id => {
-      const course = allCourses.find(c => c.id === id);
-      if (!course || !course.expiryDate) return true;
-      return new Date(course.expiryDate) > now;
-    });
-    
-    if (validEnrolledIds.length !== enrolled.length) {
-      const updatedUser = { ...currentUser, enrolledCourses: validEnrolledIds };
-      localStorage.setItem('eduworld_user', JSON.stringify(updatedUser));
-      return updatedUser;
-    }
-    return currentUser;
-  }, []);
-
   useEffect(() => {
     const init = async () => {
       try {
@@ -198,25 +199,9 @@ const App: React.FC = () => {
         }
         setCourses(currentCourses);
         
-        const savedUserStr = localStorage.getItem('eduworld_user');
-        if (savedUserStr) {
-          try {
-            const savedUser = JSON.parse(savedUserStr);
-            const cleanedUser = checkCourseExpirations(savedUser, currentCourses);
-            setUser(cleanedUser);
-          } catch (err) {
-            localStorage.removeItem('eduworld_user');
-          }
-        }
-        
         const savedThemeStr = localStorage.getItem('eduworld_theme');
         if (savedThemeStr) {
            try { setTheme(JSON.parse(savedThemeStr)); } catch(e) {}
-        }
-        
-        const savedRegUsers = localStorage.getItem('eduworld_registered_users');
-        if (savedRegUsers) {
-           try { setRegisteredUsers(JSON.parse(savedRegUsers)); } catch(e) {}
         }
       } catch (e) {
         console.error("LMS Init Error:", e);
@@ -225,18 +210,12 @@ const App: React.FC = () => {
       }
     };
     init();
-  }, [checkCourseExpirations]);
+  }, []);
 
-  const handleLogin = (u: User) => {
-    if (!u) return;
-    const cleanedUser = checkCourseExpirations(u, courses);
-    setUser(cleanedUser);
-    localStorage.setItem('eduworld_user', JSON.stringify(cleanedUser));
-  };
-
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await supabaseAuth.signOut();
     localStorage.removeItem('eduworld_user');
+    setUser(null);
     setRoute(AppRoute.DASHBOARD);
   };
 
@@ -254,15 +233,38 @@ const App: React.FC = () => {
     setRoute(isEnrolled ? AppRoute.COURSE_VIEW : AppRoute.COURSE_DETAILS);
   };
 
-  const handleEnroll = (courseId: string) => {
+  const handleEnroll = async (courseId: string) => {
     if (!user) return;
     const currentEnrolled = user.enrolledCourses || [];
     const updated = { ...user, enrolledCourses: [...new Set([...currentEnrolled, courseId])] };
     setUser(updated);
+    
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('users').upsert({ id: user.id, data: updated });
+      } catch (e) {
+        console.error("Sync to Supabase failed:", e);
+      }
+    }
+    
     localStorage.setItem('eduworld_user', JSON.stringify(updated));
     setSelectedCourseId(courseId);
     setActiveCourseId(courseId);
     setRoute(AppRoute.DASHBOARD);
+  };
+
+  const handleUpdateUser = async (u: User) => {
+    setUser(u);
+    const sb = getSupabaseClient();
+    if (sb) {
+      try {
+        await sb.from('users').upsert({ id: u.id, data: u });
+      } catch (e) {
+        console.error("User profile update failed:", e);
+      }
+    }
+    localStorage.setItem('eduworld_user', JSON.stringify(u));
   };
 
   const handleAddLessonResource = async (courseId: string, lessonId: string, resource: Resource) => {
@@ -292,25 +294,6 @@ const App: React.FC = () => {
     await saveCourseToDB(updatedCourse);
   };
 
-  const handleToggleUserEnrollment = (targetUserId: string, courseId: string) => {
-    const updatedReg = registeredUsers.map(u => {
-      if (u.id === targetUserId) {
-        const enrolled = u.enrolledCourses || [];
-        const isEnrolled = enrolled.includes(courseId);
-        const newEnrolled = isEnrolled ? enrolled.filter(id => id !== courseId) : [...enrolled, courseId];
-        const updatedU = { ...u, enrolledCourses: newEnrolled };
-        if (user && u.id === user.id) {
-          setUser(updatedU);
-          localStorage.setItem('eduworld_user', JSON.stringify(updatedU));
-        }
-        return updatedU;
-      }
-      return u;
-    });
-    setRegisteredUsers(updatedReg);
-    localStorage.setItem('eduworld_registered_users', JSON.stringify(updatedReg));
-  };
-
   const handleStartEditing = (courseId: string | null) => {
     setEditingCourseId(courseId);
     setIsEditorActive(true);
@@ -326,11 +309,25 @@ const App: React.FC = () => {
   const enrolledCourses = user ? courses.filter(c => user.enrolledCourses?.includes(c.id)) : [];
   const exploreCourses = user ? courses.filter(c => !user.enrolledCourses?.includes(c.id)) : courses;
 
+  if (isAuthLoading) {
+    return (
+      <div className="h-screen w-full bg-slate-950 flex flex-col items-center justify-center space-y-6">
+        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-center">
+          <p className="text-indigo-400 font-black uppercase tracking-[0.3em] text-xs">Authenticating Neural Link...</p>
+          <p className="text-slate-600 font-bold uppercase tracking-widest text-[8px] mt-2">Checking Database Connection</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Auth onLogin={() => {}} />;
+  }
+
   return (
-    <div className={`flex h-screen bg-slate-950 text-slate-100 overflow-hidden relative transition-all duration-500 ${!isWindowFocused ? 'blur-md grayscale scale-[1.01] pointer-events-none' : ''}`}>
-      {!user ? (
-        <Auth onLogin={handleLogin} />
-      ) : isLoading ? (
+    <div className={`flex h-screen bg-slate-950 text-slate-100 overflow-hidden relative transition-all duration-500`}>
+      {isLoading ? (
         <div className="h-screen w-full bg-slate-950 flex items-center justify-center text-indigo-400 font-black uppercase tracking-widest animate-pulse text-xs">Syncing Neural Core...</div>
       ) : (
         <>
@@ -347,10 +344,15 @@ const App: React.FC = () => {
                   <Dashboard user={user} onCourseClick={handleCourseClick} setRoute={navigate} courses={enrolledCourses} selectedCourseId={selectedCourseId} onSelectCourse={setSelectedCourseId} selectedSubjectId={selectedSubjectId} setSelectedSubjectId={setSelectedSubjectId} selectedSubSubjectId={selectedSubSubjectId} setSelectedSubSubjectId={setSelectedSubSubjectId} selectedUnitId={selectedUnitId} setSelectedUnitId={setSelectedUnitId} />
                 )}
                 {route === AppRoute.COURSES && <Explore onCourseClick={handleCourseClick} courses={exploreCourses} />}
-                {route === AppRoute.PROFILE && <Profile user={user} courses={enrolledCourses} onCourseClick={handleCourseClick} onUpdateUser={(u) => { setUser(u); localStorage.setItem('eduworld_user', JSON.stringify(u)); }} onLogout={handleLogout} setRoute={navigate} />}
+                {route === AppRoute.PROFILE && <Profile user={user} courses={enrolledCourses} onCourseClick={handleCourseClick} onUpdateUser={handleUpdateUser} onLogout={handleLogout} setRoute={navigate} />}
                 {route === AppRoute.DOWNLOADS && <Downloads onBack={() => setRoute(AppRoute.PROFILE)} />}
                 {route === AppRoute.ADMIN && user.role === 'admin' && (
                   <div className="space-y-12">
+                     <div className="flex justify-end mb-4">
+                        <button onClick={() => setRoute(AppRoute.USERS)} className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-white transition-all">
+                            <i className="fas fa-users-gear mr-2"></i> User & System Hub
+                        </button>
+                     </div>
                     {!isEditorActive ? (
                       <AdminPanel courses={courses} onAddCourse={handleAddCourse} onUpdateCourse={handleUpdateCourse} onDeleteCourse={async (id) => { setCourses(prev => prev.filter(item => item.id !== id)); await deleteCourseFromDB(id); }} onPreview={() => {}} onStartEditing={handleStartEditing} />
                     ) : (
@@ -359,13 +361,15 @@ const App: React.FC = () => {
                   </div>
                 )}
                 {route === AppRoute.USERS && user.role === 'admin' && (
-                  <UserManagement registeredUsers={registeredUsers} courses={courses} onToggleEnrollment={handleToggleUserEnrollment} onUpdateCourse={handleUpdateCourse} onAddCourse={handleAddCourse} theme={theme} setTheme={setTheme} accentOptions={ACCENT_OPTIONS} bgOptions={BG_OPTIONS} />
+                  <div className="space-y-12">
+                    <UserManagement registeredUsers={registeredUsers} courses={courses} onToggleEnrollment={() => {}} onUpdateCourse={handleUpdateCourse} onAddCourse={handleAddCourse} theme={theme} setTheme={setTheme} accentOptions={ACCENT_OPTIONS} bgOptions={BG_OPTIONS} />
+                  </div>
                 )}
                 {route === AppRoute.COURSE_DETAILS && activeCourse && (
                   <CourseDetails course={activeCourse} isAdmin={user.role === 'admin'} isEnrolled={user.enrolledCourses?.includes(activeCourse.id) || false} onEnroll={handleEnroll} onAdminEdit={() => handleStartEditing(activeCourse.id)} onBack={() => setRoute(AppRoute.COURSES)} />
                 )}
                 {route === AppRoute.COURSE_VIEW && activeCourse && (
-                  <CourseView course={activeCourse} user={user} onBack={() => setRoute(AppRoute.DASHBOARD)} initialLessonId={initialLessonId} onQuizComplete={(lid, att) => { const updated = { ...user, quizScores: { ...user.quizScores, [lid]: att } }; setUser(updated); localStorage.setItem('eduworld_user', JSON.stringify(updated)); }} onNotesUpdate={(lid, content) => { const updated = { ...user, notes: { ...(user.notes || {}), [lid]: content } }; setUser(updated); localStorage.setItem('eduworld_user', JSON.stringify(updated)); }} onAddResource={(rid, res) => handleAddLessonResource(activeCourse.id, rid, res)} />
+                  <CourseView course={activeCourse} user={user} onBack={() => setRoute(AppRoute.DASHBOARD)} initialLessonId={initialLessonId} onQuizComplete={(lid, att) => { const updated = { ...user, quizScores: { ...user.quizScores, [lid]: att } }; handleUpdateUser(updated); }} onNotesUpdate={(lid, content) => { const updated = { ...user, notes: { ...(user.notes || {}), [lid]: content } }; handleUpdateUser(updated); }} onAddResource={(rid, res) => handleAddLessonResource(activeCourse.id, rid, res)} />
                 )}
               </div>
             </main>

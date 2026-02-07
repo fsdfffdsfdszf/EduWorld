@@ -2,104 +2,110 @@
 import React, { useState, useEffect } from 'react';
 import { User, AppVersion } from '../types';
 import { getAllAppVersions } from '../services/storage';
+import { supabaseAuth } from '../services/supabase';
 
 interface AuthProps {
-  onLogin: (user: User) => void;
+  onLogin: (user: any) => void; // App.tsx handles the session sync
 }
 
-const getUsersFromStorage = (): any[] => {
-  const users = localStorage.getItem('eduworld_registered_users');
-  return users ? JSON.parse(users) : [];
-};
-
-const saveUserToStorage = (user: any) => {
-  const users = getUsersFromStorage();
-  users.push(user);
-  localStorage.setItem('eduworld_registered_users', JSON.stringify(users));
-};
-
-const Auth: React.FC<AuthProps> = ({ onLogin }) => {
+const Auth: React.FC<AuthProps> = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [isAdminMode, setIsAdminMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showAppOverlay, setShowAppOverlay] = useState(false);
+  const [showVerificationMsg, setShowVerificationMsg] = useState(false);
   const [appVersions, setAppVersions] = useState<AppVersion[]>([]);
 
   useEffect(() => {
     const loadApps = async () => {
-      const versions = await getAllAppVersions();
-      setAppVersions(versions.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()));
+      try {
+        const versions = await getAllAppVersions();
+        setAppVersions(versions.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()));
+      } catch (e) { console.error("App versions load failed", e); }
     };
     loadApps();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     if (!email || !password || (!isLogin && !name)) {
       setError('Required identifiers missing.');
+      setLoading(false);
       return;
     }
 
-    if (isAdminMode) {
-      if (email === 'shajidrahim007@gmail.com' && password === 'odiksda-a34jasdiao4-alkjwaiy3jdad') {
-        onLogin({
-          id: 'admin-1',
-          name: 'Principal Admin',
-          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=shajid',
-          role: 'admin',
-          enrolledCourses: [],
-          quizScores: {}
-        });
-        return;
+    try {
+      if (isLogin) {
+        const { error: signInErr } = await supabaseAuth.signIn(email, password);
+        if (signInErr) throw signInErr;
       } else {
-        setError('Invalid administrative key.');
-        return;
+        const { error: signUpErr } = await supabaseAuth.signUp(email, password, name);
+        if (signUpErr) throw signUpErr;
+        setShowVerificationMsg(true);
       }
-    }
-
-    const registeredUsers = getUsersFromStorage();
-    if (isLogin) {
-      const userMatch = registeredUsers.find(u => u.email === email && u.password === password);
-      if (userMatch) {
-        onLogin({ ...userMatch, role: 'student' });
-      } else {
-        setError('Identity node not found.');
-      }
-    } else {
-      const userExists = registeredUsers.some(u => u.email === email);
-      if (userExists) {
-        setError('Email already sequenced.');
-        return;
-      }
-      const newUser = {
-        id: Math.random().toString(36).substr(2, 9),
-        name, email, password,
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-        role: 'student', enrolledCourses: [], quizScores: {}
-      };
-      saveUserToStorage(newUser);
-      onLogin(newUser as any);
+    } catch (err: any) {
+      setError(err.message || 'Authentication sequence failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
+  if (showVerificationMsg) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-slate-100 relative overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse pointer-events-none"></div>
+        <div className="w-full max-w-[480px] z-10 animate-in fade-in zoom-in-95 duration-700">
+          <div className="text-center mb-12">
+            <div className="w-24 h-24 bg-emerald-600 rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-[0_20px_60px_rgba(16,185,129,0.3)] relative group">
+              <i className="fas fa-envelope-open-text text-white text-4xl animate-bounce"></i>
+            </div>
+            <h1 className="text-4xl font-black text-white tracking-tighter uppercase mb-2">Neural Link Sent</h1>
+            <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[9px]">Awaiting Identity Confirmation</p>
+          </div>
+
+          <div className="bg-slate-900/60 rounded-[48px] border border-slate-800/80 p-8 md:p-14 shadow-[0_50px_100px_rgba(0,0,0,0.8)] backdrop-blur-2xl text-center">
+            <h2 className="text-xl font-black text-white mb-4">Go to email to verify your email</h2>
+            <p className="text-slate-400 text-sm leading-relaxed mb-8">
+              We've sent a secure verification link to <span className="text-indigo-400 font-bold">{email}</span>. 
+              Please click the link in your inbox to activate your Edu World account.
+            </p>
+            
+            <div className="p-4 bg-slate-950/50 rounded-2xl border border-slate-800 mb-8">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Can't find it?</p>
+              <p className="text-[9px] text-slate-600 mt-1 uppercase tracking-widest font-bold">Check your Spam or Promotions folder</p>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowVerificationMsg(false);
+                setIsLogin(true);
+              }}
+              className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.3em] hover:bg-indigo-700 shadow-xl active:scale-95 transition-all"
+            >
+              Return to Access Hub
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#020617] flex items-center justify-center p-6 text-slate-100 relative overflow-hidden">
-      
-      {/* Neural Background Orbs */}
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-emerald-600/10 rounded-full blur-[120px] animate-pulse pointer-events-none delay-1000"></div>
 
       <div className="w-full max-w-[480px] z-10 animate-in fade-in zoom-in-95 duration-700">
         
-        {/* App Downloader Overlay */}
         {showAppOverlay && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-300">
-            <div className="bg-slate-900 w-full max-w-md rounded-[40px] border border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-slate-900 w-full max-m-md rounded-[40px] border border-slate-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="p-8 border-b border-slate-800 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-black text-white uppercase tracking-tight">App Distribution</h3>
@@ -139,99 +145,86 @@ const Auth: React.FC<AuthProps> = ({ onLogin }) => {
         <div className="text-center mb-12">
           <div className="w-24 h-24 bg-indigo-600 rounded-[32px] flex items-center justify-center mx-auto mb-8 shadow-[0_20px_60px_rgba(79,70,229,0.3)] relative group">
             <i className="fas fa-graduation-cap text-white text-4xl group-hover:scale-110 transition-transform duration-500"></i>
-            <div className="absolute inset-0 bg-white/20 rounded-[32px] scale-110 blur-xl -z-10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
           </div>
           <h1 className="text-4xl font-black text-white tracking-tighter uppercase mb-2">Edu World</h1>
           <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-[9px]">Neural Education Protocol</p>
         </div>
 
-        <div className="bg-slate-900/60 rounded-[48px] border border-slate-800/80 p-8 md:p-14 shadow-[0_50px_100px_rgba(0,0,0,0.8)] backdrop-blur-2xl relative overflow-hidden group">
-          
-          {/* Subtle accent border */}
+        <div className="bg-slate-900/60 rounded-[48px] border border-slate-800/80 p-8 md:p-14 shadow-[0_50px_100px_rgba(0,0,0,0.8)] backdrop-blur-2xl relative overflow-hidden">
           <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-transparent via-indigo-600/30 to-transparent"></div>
 
-          <div className="flex bg-slate-950/50 p-1.5 rounded-2xl mb-12 relative z-10 border border-slate-800/50 shadow-inner">
+          <div className="flex bg-slate-950/50 p-1.5 rounded-2xl mb-12 relative z-10 border border-slate-800/50">
             <button
               onClick={() => { setIsLogin(true); setError(''); }}
-              className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${isLogin && !isAdminMode ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-slate-600 hover:text-slate-400'}`}
+              className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${isLogin ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-600'}`}
             >
-              Sequence
+              Access
             </button>
             <button
               onClick={() => { setIsLogin(false); setError(''); }}
-              className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${!isLogin && !isAdminMode ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/20' : 'text-slate-600 hover:text-slate-400'}`}
+              className={`flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 ${!isLogin ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-600'}`}
             >
               Registry
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
-            {!isLogin && !isAdminMode && (
-              <div className="space-y-2 group">
-                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-indigo-400">Legal Identity</label>
+            {!isLogin && (
+              <div className="space-y-2">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Identity Display Name</label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:bg-slate-900 focus:border-indigo-600/50 outline-none transition-all font-bold text-sm text-white placeholder:text-slate-800 shadow-inner"
+                  className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:border-indigo-600/50 outline-none font-bold text-sm text-white"
                   placeholder="Full name"
                 />
               </div>
             )}
 
-            <div className="space-y-2 group">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-indigo-400">Neural Link Email</label>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Node</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:bg-slate-900 focus:border-indigo-600/50 outline-none transition-all font-bold text-sm text-white placeholder:text-slate-800 shadow-inner"
-                placeholder="name@eduworld.ct.ws"
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:border-indigo-600/50 outline-none font-bold text-sm text-white"
+                placeholder="name@example.com"
               />
             </div>
 
-            <div className="space-y-2 group">
-              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 transition-colors group-focus-within:text-indigo-400">Access Key</label>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">Access Key</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:bg-slate-900 focus:border-indigo-600/50 outline-none transition-all font-bold text-sm text-white placeholder:text-slate-800 shadow-inner"
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-[20px] px-6 py-5 focus:border-indigo-600/50 outline-none font-bold text-sm text-white"
                 placeholder="••••••••"
               />
             </div>
 
-            {error && <p className="text-[10px] font-black text-rose-500 text-center uppercase tracking-[0.2em] animate-pulse h-4">{error}</p>}
+            {error && <p className="text-[10px] font-black text-rose-500 text-center uppercase tracking-[0.2em]">{error}</p>}
 
             <button
               type="submit"
-              className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.3em] hover:bg-indigo-700 shadow-[0_20px_50px_rgba(79,70,229,0.3)] active:scale-95 transition-all mt-4 flex items-center justify-center"
+              disabled={loading}
+              className="w-full py-5 bg-indigo-600 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.3em] hover:bg-indigo-700 shadow-xl active:scale-95 transition-all disabled:opacity-50"
             >
-              {isLogin ? 'Initiate Sync' : 'Complete Registry'}
+              {loading ? 'Authenticating...' : (isLogin ? 'Initiate Sync' : 'Create Identity')}
             </button>
           </form>
 
-          <div className="mt-12 pt-10 border-t border-slate-800/60 flex flex-col gap-6 items-center">
-            <button
-              onClick={() => { setIsAdminMode(!isAdminMode); setError(''); setIsLogin(true); }}
-              className={`text-[9px] font-black transition-all uppercase tracking-[0.4em] px-6 py-2.5 rounded-full border ${isAdminMode ? 'text-indigo-400 border-indigo-900/40 bg-indigo-500/5' : 'text-slate-600 hover:text-slate-400 border-transparent hover:border-slate-800'}`}
-            >
-              {isAdminMode ? 'System Standard' : 'Core Administration'}
-            </button>
-            
+          <div className="mt-12 text-center">
             <button 
               onClick={() => setShowAppOverlay(true)}
-              className="flex items-center space-x-3 text-slate-700 hover:text-indigo-500 transition-all duration-300"
+              className="flex items-center justify-center space-x-3 text-slate-700 hover:text-indigo-500 transition-all mx-auto"
             >
               <i className="fab fa-android text-lg"></i>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Download Mobile Client</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Platform Distribution</span>
             </button>
           </div>
         </div>
-        
-        <p className="text-center text-slate-800 font-bold text-[8px] uppercase tracking-[0.5em] mt-12 px-10 leading-loose">
-          Secure multi-node learning environment. All neural links are encrypted via protocol 7.2-X.
-        </p>
       </div>
     </div>
   );

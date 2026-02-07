@@ -104,7 +104,7 @@ const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdat
         <div className="w-full md:w-auto flex flex-col space-y-3 z-10">
           <button onClick={() => setRoute(AppRoute.DOWNLOADS)} className="w-full md:w-auto px-10 py-4.5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-xl active:scale-95 transition-all">Download Portal</button>
           <button onClick={() => setIsSettingsOpen(true)} className="w-full md:w-auto px-10 py-4.5 bg-slate-100 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-xl shadow-xl active:scale-95 transition-all">Settings</button>
-          <button onClick={onLogout} className="md:hidden w-full px-10 py-4 bg-rose-600/10 text-rose-500 border border-rose-900/30 font-black text-[9px] uppercase tracking-widest rounded-xl active:scale-95 transition-all">Terminate Session</button>
+          <button onClick={onLogout} className="w-full px-10 py-4 bg-rose-600/10 text-rose-500 border border-rose-900/30 font-black text-[9px] uppercase tracking-widest rounded-xl active:scale-95 transition-all">Reset All Local Data</button>
         </div>
         
         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/5 rounded-full blur-[80px] pointer-events-none"></div>

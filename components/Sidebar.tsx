@@ -87,10 +87,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRoute, user, setRoute, onLogou
         </div>
         <button 
           onClick={onLogout} 
-          className="w-full flex items-center justify-center px-4 py-3.5 text-[9px] font-black text-rose-500 hover:bg-rose-950/20 rounded-2xl transition-all uppercase tracking-[0.2em] border border-transparent hover:border-rose-900/30"
+          className="w-full flex items-center justify-center px-4 py-3.5 text-[9px] font-black text-slate-500 hover:bg-slate-900/50 rounded-2xl transition-all uppercase tracking-[0.2em] border border-transparent hover:border-slate-800"
         >
-          <i className="fas fa-right-from-bracket mr-3"></i>
-          Logout Session
+          <i className="fas fa-rotate-left mr-3"></i>
+          Reset Session
         </button>
       </div>
     </div>
