@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Course, Lesson, SubjectGroup, QuizQuestion, Resource, HostedAsset } from '../types';
 import { saveHostedAsset, getAllHostedAssets, deleteHostedAsset } from '../services/storage';
 
@@ -41,10 +41,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
   const [editingLessonIdx, setEditingLessonIdx] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [iconPickerOpenId, setIconPickerOpenId] = useState<string | null>(null);
+  const [moduleSearch, setModuleSearch] = useState('');
   
   const [mainView, setMainView] = useState<'courses' | 'assets'>('courses');
   const [hostedAssets, setHostedAssets] = useState<HostedAsset[]>([]);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [vaultSearch, setVaultSearch] = useState('');
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -70,10 +72,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
       const assets = await getAllHostedAssets();
       setHostedAssets(assets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     };
-    if (mainView === 'assets') {
+    if (mainView === 'assets' || (isEditing && editingLessonIdx !== null)) {
       loadAssets();
     }
-  }, [mainView]);
+  }, [mainView, isEditing, editingLessonIdx]);
 
   useEffect(() => {
     if (editingLessonIdx !== null && quillRef.current && !quillInstance.current) {
@@ -371,6 +373,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
     setCurrentCourse(null);
   };
 
+  const handleManualUrlAttach = () => {
+    if (!vaultSearch.trim()) return;
+    const url = vaultSearch.trim();
+    const newResource: Resource = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: url.length > 25 ? 'Manually Attached Resource' : url,
+      url: url.startsWith('http') ? url : `https://${url}`,
+      type: 'link',
+      description: 'Externally linked resource'
+    };
+    const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx!]?.resources || [])];
+    updateLesson(editingLessonIdx!, { resources: [...currentResources, newResource] });
+    setVaultSearch('');
+  };
+
+  const filteredLessons = useMemo(() => {
+    return (currentCourse?.lessons || []).filter(l => 
+      l.title.toLowerCase().includes(moduleSearch.toLowerCase())
+    );
+  }, [currentCourse?.lessons, moduleSearch]);
+
   if (isEditing && currentCourse) {
     const isEditingLesson = editingLessonIdx !== null;
     const currentLesson = isEditingLesson ? currentCourse.lessons![editingLessonIdx!] : null;
@@ -415,7 +438,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                         type="text" 
                         value={typeof currentLesson.videoUrl === 'string' ? currentLesson.videoUrl : (currentLesson.videoUrl instanceof File ? `Local File: ${currentLesson.videoUrl.name}` : '')} 
                         onChange={e => updateLesson(editingLessonIdx!, { videoUrl: e.target.value })} 
-                        placeholder="Video source..." 
+                        placeholder="Video source URL..." 
                         className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-slate-400 font-mono text-xs focus:border-indigo-500 outline-none transition-all" 
                       />
                     </div>
@@ -474,10 +497,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                     </div>
                   </div>
 
-                  {/* Resource Manager - UPLOAD ONLY */}
+                  {/* Resource Manager - UPLOAD & SEARCH */}
                   <div className="bg-slate-900 rounded-[24px] md:rounded-[32px] border border-slate-800 p-6 md:p-8 space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                       <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Asset Library (Files/PDFs Only)</h3>
+                       <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Asset Library</h3>
                        <div className="flex gap-2">
                           <button onClick={() => { updatingResourceIdx.current = null; resourceInputRef.current?.click(); }} className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center">
                             {isUploading ? <i className="fas fa-spinner fa-spin mr-2"></i> : <i className="fas fa-file-arrow-up mr-2"></i>}
@@ -486,38 +509,128 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                        </div>
                        <input type="file" ref={resourceInputRef} className="hidden" onChange={handleResourceUpload} />
                     </div>
+
+                    {/* Unified Search Option */}
+                    <div className="space-y-4">
+                      <div className="relative">
+                         <div className="flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-5 py-1.5 shadow-inner focus-within:border-indigo-500/50 transition-all group">
+                            <i className="fas fa-search text-slate-700 mr-3 text-xs group-focus-within:text-indigo-500 transition-colors"></i>
+                            <input 
+                              type="text" 
+                              placeholder="Search vault or enter external URL..." 
+                              className="bg-transparent border-none focus:ring-0 text-[10px] text-white w-full uppercase font-black placeholder:text-slate-800 py-3"
+                              value={vaultSearch}
+                              onChange={e => setVaultSearch(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && handleManualUrlAttach()}
+                            />
+                            {vaultSearch.trim() && (
+                              <button 
+                                onClick={handleManualUrlAttach}
+                                className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shrink-0"
+                              >
+                                Search / Link
+                              </button>
+                            )}
+                         </div>
+                         {vaultSearch.trim() && (
+                            <div className="absolute top-full left-0 right-0 mt-3 bg-slate-900 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[160] max-h-64 overflow-y-auto p-3 space-y-2 no-scrollbar animate-in zoom-in-95 duration-200">
+                               <div className="px-3 py-2 border-b border-slate-800 mb-2 flex items-center justify-between">
+                                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Manual Integration</p>
+                               </div>
+                               <button 
+                                 onClick={handleManualUrlAttach}
+                                 className="w-full text-left p-4 bg-indigo-600/10 hover:bg-indigo-600/20 rounded-2xl flex items-center space-x-4 group transition-all border border-indigo-500/20"
+                               >
+                                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg">
+                                     <i className="fas fa-link text-white text-xs"></i>
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                     <p className="text-[10px] font-black text-indigo-400 truncate uppercase tracking-widest">Attach as External URL</p>
+                                     <p className="text-[8px] font-bold text-indigo-400/60 truncate font-mono">{vaultSearch.startsWith('http') ? vaultSearch : `https://${vaultSearch}`}</p>
+                                  </div>
+                               </button>
+
+                               {hostedAssets.filter(a => a.title.toLowerCase().includes(vaultSearch.toLowerCase()) || a.fileName.toLowerCase().includes(vaultSearch.toLowerCase())).length > 0 && (
+                                 <>
+                                   <div className="px-3 py-2 border-b border-slate-800 my-2">
+                                      <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Vault Matching Results</p>
+                                   </div>
+                                   {hostedAssets.filter(a => a.title.toLowerCase().includes(vaultSearch.toLowerCase()) || a.fileName.toLowerCase().includes(vaultSearch.toLowerCase())).map(asset => (
+                                      <button 
+                                        key={asset.id} 
+                                        onClick={() => {
+                                          const newResource: Resource = {
+                                            id: Math.random().toString(36).substr(2, 9),
+                                            title: asset.title,
+                                            url: asset.url,
+                                            type: asset.mimeType.includes('video') ? 'video' : (asset.mimeType.includes('zip') ? 'zip' : 'link'),
+                                            description: `Attached from Vault: ${asset.fileName}`
+                                          };
+                                          const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx!]?.resources || [])];
+                                          updateLesson(editingLessonIdx!, { resources: [...currentResources, newResource] });
+                                          setVaultSearch('');
+                                        }}
+                                        className="w-full text-left p-4 hover:bg-slate-950 rounded-2xl flex items-center space-x-4 group transition-all border border-transparent hover:border-slate-800"
+                                      >
+                                         <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center border border-slate-800 shrink-0">
+                                            <i className={`fas ${getAssetIcon(asset.mimeType)} text-xs opacity-50 group-hover:text-indigo-400 group-hover:opacity-100`}></i>
+                                         </div>
+                                         <div className="min-w-0 flex-1">
+                                            <p className="text-[10px] font-black text-white truncate">{asset.title}</p>
+                                            <p className="text-[7px] font-bold text-slate-600 truncate uppercase tracking-widest font-mono">{asset.url}</p>
+                                         </div>
+                                      </button>
+                                   ))}
+                                 </>
+                               )}
+                            </div>
+                         )}
+                      </div>
+                    </div>
                     
                     <div className="grid grid-cols-1 gap-4">
-                      {(currentLesson.resources || []).map((res, rIdx) => {
-                        return (
-                          <div key={res.id} className="p-5 bg-slate-950 border border-slate-800 rounded-2xl flex items-center gap-6 relative group">
-                            <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400">
-                               <i className={`fas ${getAssetIcon(res.type)} text-xl`}></i>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                               <input type="text" value={res.title} onChange={e => updateResource(rIdx, { title: e.target.value })} className="bg-transparent border-none focus:ring-0 text-white font-black text-sm p-0 w-full mb-1" />
-                               <div className="flex items-center space-x-2 text-[9px] font-mono text-slate-600">
-                                  <span className="bg-slate-900 px-2 py-0.5 rounded text-indigo-500 font-black uppercase">{res.type}</span>
-                                  <span className="truncate opacity-50">{res.url}</span>
-                               </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                               <button 
-                                 onClick={() => { updatingResourceIdx.current = rIdx; resourceInputRef.current?.click(); }}
-                                 className="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all"
-                                 title="Replace File"
-                               >
-                                  <i className="fas fa-sync-alt text-[10px]"></i>
-                               </button>
-                               <button onClick={() => removeResource(rIdx)} className="w-10 h-10 rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all"><i className="fas fa-trash-alt text-[10px]"></i></button>
-                            </div>
+                      {(currentLesson.resources || []).map((res, rIdx) => (
+                        <div key={res.id} className="p-5 bg-slate-950 border border-slate-800 rounded-2xl flex items-center gap-6 relative group transition-all hover:border-slate-700">
+                          <div className={`w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center ${res.url.includes('eduworld.ct.ws') ? 'text-indigo-400' : 'text-emerald-400'}`}>
+                             <i className={`fas ${res.type === 'video' ? 'fa-file-video' : res.type === 'zip' ? 'fa-file-zipper' : 'fa-link'} text-xl`}></i>
                           </div>
-                        );
-                      })}
+                          <div className="flex-1 min-w-0 space-y-1">
+                             <input 
+                               type="text" 
+                               value={res.title} 
+                               onChange={e => updateResource(rIdx, { title: e.target.value })} 
+                               className="bg-transparent border-none focus:ring-0 text-white font-black text-sm p-0 w-full outline-none" 
+                               placeholder="Resource Title"
+                             />
+                             <div className="flex items-center space-x-3 text-[9px] font-mono w-full">
+                                <span className={`px-2 py-0.5 rounded font-black uppercase shrink-0 ${res.url.includes('eduworld.ct.ws') ? 'bg-indigo-600/10 text-indigo-400' : 'bg-emerald-600/10 text-emerald-400'}`}>
+                                   {res.url.includes('eduworld.ct.ws') ? 'Vault' : 'External'}
+                                </span>
+                                <input 
+                                  type="text" 
+                                  value={res.url} 
+                                  onChange={e => updateResource(rIdx, { url: e.target.value })} 
+                                  className="bg-transparent border-none focus:ring-0 text-slate-600 font-medium p-0 w-full outline-none truncate" 
+                                  placeholder="Resource URL"
+                                />
+                             </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                             <button 
+                               onClick={() => { updatingResourceIdx.current = rIdx; resourceInputRef.current?.click(); }}
+                               className="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all"
+                               title="Replace with File"
+                             >
+                                <i className="fas fa-sync-alt text-[10px]"></i>
+                             </button>
+                             <button onClick={() => removeResource(rIdx)} className="w-10 h-10 rounded-xl bg-rose-600/10 text-rose-500 border border-rose-600/20 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all"><i className="fas fa-trash-alt text-[10px]"></i></button>
+                          </div>
+                        </div>
+                      ))}
                       {(currentLesson.resources || []).length === 0 && (
-                        <div className="py-8 border-2 border-dashed border-slate-900 rounded-2xl flex flex-col items-center justify-center opacity-40">
-                           <i className="fas fa-cloud-arrow-up text-xl mb-2"></i>
-                           <p className="text-[8px] font-black uppercase tracking-widest text-slate-500">No node files attached.</p>
+                        <div className="py-12 border-2 border-dashed border-slate-900 rounded-[28px] flex flex-col items-center justify-center opacity-40">
+                           <i className="fas fa-link text-xl mb-3 text-slate-500"></i>
+                           <p className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-500">No resources linked to this node.</p>
                         </div>
                       )}
                     </div>
@@ -631,30 +744,52 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
             {activeTab === 'curriculum' && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                   <h3 className="text-xl font-black text-white tracking-tight">Modules</h3>
+                   <div className="space-y-2 flex-1">
+                      <h3 className="text-xl font-black text-white tracking-tight">Modules</h3>
+                      <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 w-full max-w-sm shadow-inner group focus-within:border-indigo-500/50 transition-all">
+                        <i className="fas fa-search text-slate-700 mr-3 text-[10px] group-focus-within:text-indigo-400 transition-colors"></i>
+                        <input 
+                          type="text" 
+                          placeholder="Search modules..." 
+                          value={moduleSearch}
+                          onChange={e => setModuleSearch(e.target.value)}
+                          className="bg-transparent border-none focus:ring-0 text-[10px] text-slate-300 font-bold w-full placeholder:text-slate-800 py-1"
+                        />
+                      </div>
+                   </div>
                    <button onClick={() => {
                       const newLesson: Lesson = { id: Math.random().toString(36).substr(2, 9), title: 'New Module', content: '<p>Start building...</p>', duration: '10:00', quiz: [], resources: [] };
                       setCurrentCourse(prev => ({ ...prev, lessons: [...(prev?.lessons || []), newLesson] }));
-                   }} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">+ New Module</button>
+                   }} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all self-end shadow-xl">+ New Module</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(currentCourse.lessons || []).map((lesson, idx) => (
-                    <div key={lesson.id} className={`bg-slate-950 border rounded-3xl p-5 flex flex-col justify-between group transition-all ${lesson.isExamMode ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-slate-800 hover:border-indigo-500/30'}`}>
-                      <div className="flex items-center space-x-4 mb-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg border shrink-0 ${lesson.isExamMode ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-indigo-600/10 text-indigo-400 border-indigo-500/10'}`}>
-                          <i className={`fas ${lesson.isExamMode ? 'fa-file-signature' : lesson.videoUrl ? 'fa-video' : 'fa-file-lines'}`}></i>
+                  {filteredLessons.map((lesson, idx) => {
+                    // Find actual index in original array
+                    const originalIdx = currentCourse.lessons!.findIndex(l => l.id === lesson.id);
+                    return (
+                      <div key={lesson.id} className={`bg-slate-950 border rounded-3xl p-5 flex flex-col justify-between group transition-all ${lesson.isExamMode ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-slate-800 hover:border-indigo-500/30'}`}>
+                        <div className="flex items-center space-x-4 mb-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg border shrink-0 ${lesson.isExamMode ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-indigo-600/10 text-indigo-400 border-indigo-500/10'}`}>
+                            <i className={`fas ${lesson.isExamMode ? 'fa-file-signature' : lesson.videoUrl ? 'fa-video' : 'fa-file-lines'}`}></i>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                             <h4 className="font-black text-slate-100 truncate text-sm">{lesson.title}</h4>
+                             <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest mt-0.5">{lesson.isExamMode ? 'Exam Node' : 'Learning Module'}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1">
-                           <h4 className="font-black text-slate-100 truncate text-sm">{lesson.title}</h4>
-                           <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest mt-0.5">{lesson.isExamMode ? 'Exam Node' : 'Learning Module'}</p>
+                        <div className="flex items-center justify-between border-t border-slate-800/50 pt-4">
+                          <button onClick={() => setEditingLessonIdx(originalIdx)} className="px-4 py-2 bg-slate-900 border border-slate-800 text-[9px] font-black text-slate-500 hover:text-white rounded-xl transition-all uppercase tracking-widest">Architect</button>
+                          <button onClick={() => setCurrentCourse({ ...currentCourse, lessons: currentCourse.lessons?.filter(l => l.id !== lesson.id) })} className="text-slate-800 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt"></i></button>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between border-t border-slate-800/50 pt-4">
-                        <button onClick={() => setEditingLessonIdx(idx)} className="px-4 py-2 bg-slate-900 border border-slate-800 text-[9px] font-black text-slate-500 hover:text-white rounded-xl transition-all uppercase tracking-widest">Architect</button>
-                        <button onClick={() => setCurrentCourse({ ...currentCourse, lessons: currentCourse.lessons?.filter((_, i) => i !== idx) })} className="text-slate-800 hover:text-rose-500 transition-colors"><i className="fas fa-trash-alt"></i></button>
-                      </div>
+                    );
+                  })}
+                  {filteredLessons.length === 0 && (
+                    <div className="col-span-full py-12 border-2 border-dashed border-slate-900 rounded-[32px] flex flex-col items-center justify-center opacity-40">
+                        <i className="fas fa-magnifying-glass text-2xl mb-3 text-slate-700"></i>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">No matching modules found.</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             )}
@@ -791,7 +926,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                </div>
                <div className="space-y-1 min-w-0">
                   <p className="text-[11px] font-black text-white truncate">{asset.fileName}</p>
-                  <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest truncate">{asset.mimeType}</p>
+                  <p className="text-[7px] font-black text-slate-600 uppercase tracking-widest truncate font-mono">{asset.mimeType}</p>
                </div>
                <div className="pt-2 border-t border-slate-800/50 flex items-center gap-2">
                   <button onClick={() => copyToClipboard(asset.url, asset.id)} className="flex-1 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-500 hover:text-indigo-400 hover:border-indigo-500/30 text-[8px] font-black uppercase tracking-widest transition-all flex items-center justify-center">
