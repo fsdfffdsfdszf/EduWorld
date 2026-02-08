@@ -104,7 +104,6 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
         if (asset.data instanceof Blob) {
           blob = asset.data;
         } else {
-          // If it's stored as base64, convert to a clean blob with explicit MIME type
           const response = await fetch(asset.data as string);
           blob = await response.blob();
         }
@@ -168,10 +167,15 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
   };
 
   const handleOpenResource = async (res: Resource) => {
-    // Show a loading indicator if necessary, but blob URLs are fast
-    const resolvedUrl = await resolveAssetUrl(res.url);
-    // Opening in a new window/tab allows browsers to use their native PDF/Viewer engine
-    window.open(resolvedUrl, '_blank');
+    // Determine if it's a vault asset or external URL
+    const isVaultAsset = res.url.includes('eduworld.ct.ws/cdn/');
+    if (isVaultAsset) {
+      const resolvedUrl = await resolveAssetUrl(res.url);
+      window.open(resolvedUrl, '_blank');
+    } else {
+      // Strictly open external links natively
+      window.open(res.url, '_blank');
+    }
   };
 
   const formatExamTime = (seconds: number) => {
@@ -252,7 +256,7 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
           <div key={activeLessonId} className={`max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12 relative animate-in fade-in duration-700 ${!lessonVideoUrl ? 'pt-20 md:pt-32' : 'pt-4 md:pt-12'} ${direction === 'next' ? 'slide-in-from-right-12' : direction === 'prev' ? 'slide-in-from-left-12' : 'slide-in-from-bottom-6'}`}>
             <div className="mb-6 md:mb-12 space-y-3 md:space-y-4">
                <div className="flex items-center space-x-3 md:space-x-4">
-                  <span className={`px-2 py-0.5 md:px-3 md:py-1 text-[7px] md:text-[9px] font-black uppercase tracking-widest rounded-full border shadow-sm ${activeLesson.isExamMode ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'}`}>
+                  <span className={`px-2 py-0.5 md:px-3 md:py-1 text-[7px] md:text-[9px] font-black uppercase tracking-widest rounded-full border shadow-sm ${activeLesson.isExamMode ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' : 'bg-indigo-600/10 text-indigo-400 border-indigo-500/20'}`}>
                     {activeLesson.isExamMode ? 'Exam Node' : `Module ${activeLessonIndex + 1} of ${course.lessons.length}`}
                   </span>
                   <div className="h-[1px] flex-1 bg-slate-800/50"></div>
@@ -324,12 +328,14 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-6 animate-in slide-in-from-right-8 duration-500">
                   {(activeLesson.resources || []).map(res => (
                     <button key={res.id} onClick={() => handleOpenResource(res)} className="flex items-center p-3 md:p-6 bg-slate-900/50 border border-slate-800 rounded-[16px] md:rounded-[32px] hover:border-indigo-500/50 transition-all text-left group">
-                       <div className="w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl bg-slate-950 flex items-center justify-center text-indigo-400 mr-3 md:mr-5 text-xs md:text-xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                          <i className={`fas ${res.type === 'video' ? 'fa-play-circle' : 'fa-file-pdf'}`}></i>
+                       <div className={`w-8 h-8 md:w-14 md:h-14 rounded-lg md:rounded-2xl bg-slate-950 flex items-center justify-center mr-3 md:mr-5 text-xs md:text-xl transition-all ${res.url.includes('eduworld.ct.ws') ? 'text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white' : 'text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white'}`}>
+                          <i className={`fas ${res.type === 'video' ? 'fa-play-circle' : res.type === 'zip' ? 'fa-file-zipper' : 'fa-link'}`}></i>
                        </div>
                        <div className="flex-1 min-w-0">
-                          <p className="text-[11px] md:text-base font-black text-white truncate leading-tight group-hover:text-indigo-400 transition-colors">{res.title}</p>
-                          <p className="text-[6px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest mt-0.5">{res.type.toUpperCase()} • OPEN IN TAB</p>
+                          <p className={`text-[11px] md:text-base font-black text-white truncate leading-tight transition-colors ${res.url.includes('eduworld.ct.ws') ? 'group-hover:text-indigo-400' : 'group-hover:text-emerald-400'}`}>{res.title}</p>
+                          <p className="text-[6px] md:text-[10px] font-black text-slate-600 uppercase tracking-widest mt-0.5">
+                            {res.url.includes('eduworld.ct.ws') ? 'VAULT' : 'EXTERNAL'} • {res.type.toUpperCase()}
+                          </p>
                        </div>
                     </button>
                   ))}

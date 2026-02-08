@@ -47,6 +47,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
   const [hostedAssets, setHostedAssets] = useState<HostedAsset[]>([]);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [vaultSearch, setVaultSearch] = useState('');
+  const [manualUrl, setManualUrl] = useState('');
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +346,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
     });
   };
 
+  const handleAddManualUrl = () => {
+    if (!manualUrl.trim() || editingLessonIdx === null) return;
+    const url = manualUrl.trim();
+    const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
+    const newResource: Resource = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: formattedUrl.length > 30 ? 'Linked Asset' : formattedUrl,
+      url: formattedUrl,
+      type: 'link',
+      description: 'Externally attached URL'
+    };
+    const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx]?.resources || [])];
+    updateLesson(editingLessonIdx, { resources: [...currentResources, newResource] });
+    setManualUrl('');
+  };
+
   const addSubject = () => {
     const newSubj: SubjectGroup = { id: Math.random().toString(36).substr(2, 9), name: 'New Subject', icon: 'fa-book', color: COLOR_PRESETS[3], subSubjects: [] };
     setCurrentCourse(prev => ({ ...prev, subjects: [...(prev?.subjects || []), newSubj] }));
@@ -373,22 +390,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
     setCurrentCourse(null);
   };
 
-  const handleManualUrlAttach = () => {
-    if (!vaultSearch.trim()) return;
-    const url = vaultSearch.trim();
-    const newResource: Resource = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: url.length > 25 ? 'Manually Attached Resource' : url,
-      url: url.startsWith('http') ? url : `https://${url}`,
-      type: 'link',
-      description: 'Externally linked resource'
-    };
-    const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx!]?.resources || [])];
-    updateLesson(editingLessonIdx!, { resources: [...currentResources, newResource] });
-    setVaultSearch('');
-  };
-
-  const filteredLessons = useMemo(() => {
+  const filteredLessonsForView = useMemo(() => {
+    if (!moduleSearch.trim()) return currentCourse?.lessons || [];
     return (currentCourse?.lessons || []).filter(l => 
       l.title.toLowerCase().includes(moduleSearch.toLowerCase())
     );
@@ -497,7 +500,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                     </div>
                   </div>
 
-                  {/* Resource Manager - UPLOAD & SEARCH */}
+                  {/* Resource Manager */}
                   <div className="bg-slate-900 rounded-[24px] md:rounded-[32px] border border-slate-800 p-6 md:p-8 space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Asset Library</h3>
@@ -510,79 +513,72 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                        <input type="file" ref={resourceInputRef} className="hidden" onChange={handleResourceUpload} />
                     </div>
 
-                    {/* Unified Search Option */}
+                    {/* Unified Link Attachment System */}
                     <div className="space-y-4">
                       <div className="relative">
-                         <div className="flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-5 py-1.5 shadow-inner focus-within:border-indigo-500/50 transition-all group">
-                            <i className="fas fa-search text-slate-700 mr-3 text-xs group-focus-within:text-indigo-500 transition-colors"></i>
-                            <input 
-                              type="text" 
-                              placeholder="Search vault or enter external URL..." 
-                              className="bg-transparent border-none focus:ring-0 text-[10px] text-white w-full uppercase font-black placeholder:text-slate-800 py-3"
-                              value={vaultSearch}
-                              onChange={e => setVaultSearch(e.target.value)}
-                              onKeyDown={e => e.key === 'Enter' && handleManualUrlAttach()}
-                            />
-                            {vaultSearch.trim() && (
-                              <button 
-                                onClick={handleManualUrlAttach}
-                                className="ml-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-indigo-700 shadow-lg shrink-0"
-                              >
-                                Search / Link
-                              </button>
-                            )}
+                         <div className="flex flex-col md:flex-row gap-2">
+                            <div className="flex-1 flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-5 py-1.5 shadow-inner focus-within:border-indigo-500/50 transition-all group">
+                               <i className="fas fa-search text-slate-700 mr-3 text-xs"></i>
+                               <input 
+                                 type="text" 
+                                 placeholder="Search vault or enter external URL..." 
+                                 className="bg-transparent border-none focus:ring-0 text-[10px] text-white w-full uppercase font-black placeholder:text-slate-800 py-3"
+                                 value={vaultSearch}
+                                 onChange={e => setVaultSearch(e.target.value)}
+                               />
+                            </div>
+                            <div className="flex items-center bg-slate-950 border border-slate-800 rounded-2xl px-5 py-1.5 shadow-inner focus-within:border-emerald-500/50 transition-all">
+                               <i className="fas fa-link text-slate-700 mr-3 text-xs"></i>
+                               <input 
+                                 type="text" 
+                                 placeholder="Direct External URL..." 
+                                 className="bg-transparent border-none focus:ring-0 text-[10px] text-white w-full font-mono placeholder:text-slate-800 py-3"
+                                 value={manualUrl}
+                                 onChange={e => setManualUrl(e.target.value)}
+                                 onKeyDown={e => e.key === 'Enter' && handleAddManualUrl()}
+                               />
+                               {manualUrl.trim() && (
+                                 <button 
+                                   onClick={handleAddManualUrl}
+                                   className="ml-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-[8px] font-black uppercase tracking-widest shadow-lg"
+                                 >
+                                   Attach Link
+                                 </button>
+                               )}
+                            </div>
                          </div>
+                         
                          {vaultSearch.trim() && (
                             <div className="absolute top-full left-0 right-0 mt-3 bg-slate-900 border border-slate-800 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-[160] max-h-64 overflow-y-auto p-3 space-y-2 no-scrollbar animate-in zoom-in-95 duration-200">
-                               <div className="px-3 py-2 border-b border-slate-800 mb-2 flex items-center justify-between">
-                                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Manual Integration</p>
+                               <div className="px-3 py-2 border-b border-slate-800 mb-2">
+                                  <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Vault Matching Results</p>
                                </div>
-                               <button 
-                                 onClick={handleManualUrlAttach}
-                                 className="w-full text-left p-4 bg-indigo-600/10 hover:bg-indigo-600/20 rounded-2xl flex items-center space-x-4 group transition-all border border-indigo-500/20"
-                               >
-                                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center shrink-0 shadow-lg">
-                                     <i className="fas fa-link text-white text-xs"></i>
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                     <p className="text-[10px] font-black text-indigo-400 truncate uppercase tracking-widest">Attach as External URL</p>
-                                     <p className="text-[8px] font-bold text-indigo-400/60 truncate font-mono">{vaultSearch.startsWith('http') ? vaultSearch : `https://${vaultSearch}`}</p>
-                                  </div>
-                               </button>
-
-                               {hostedAssets.filter(a => a.title.toLowerCase().includes(vaultSearch.toLowerCase()) || a.fileName.toLowerCase().includes(vaultSearch.toLowerCase())).length > 0 && (
-                                 <>
-                                   <div className="px-3 py-2 border-b border-slate-800 my-2">
-                                      <p className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Vault Matching Results</p>
-                                   </div>
-                                   {hostedAssets.filter(a => a.title.toLowerCase().includes(vaultSearch.toLowerCase()) || a.fileName.toLowerCase().includes(vaultSearch.toLowerCase())).map(asset => (
-                                      <button 
-                                        key={asset.id} 
-                                        onClick={() => {
-                                          const newResource: Resource = {
-                                            id: Math.random().toString(36).substr(2, 9),
-                                            title: asset.title,
-                                            url: asset.url,
-                                            type: asset.mimeType.includes('video') ? 'video' : (asset.mimeType.includes('zip') ? 'zip' : 'link'),
-                                            description: `Attached from Vault: ${asset.fileName}`
-                                          };
-                                          const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx!]?.resources || [])];
-                                          updateLesson(editingLessonIdx!, { resources: [...currentResources, newResource] });
-                                          setVaultSearch('');
-                                        }}
-                                        className="w-full text-left p-4 hover:bg-slate-950 rounded-2xl flex items-center space-x-4 group transition-all border border-transparent hover:border-slate-800"
-                                      >
-                                         <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center border border-slate-800 shrink-0">
-                                            <i className={`fas ${getAssetIcon(asset.mimeType)} text-xs opacity-50 group-hover:text-indigo-400 group-hover:opacity-100`}></i>
-                                         </div>
-                                         <div className="min-w-0 flex-1">
-                                            <p className="text-[10px] font-black text-white truncate">{asset.title}</p>
-                                            <p className="text-[7px] font-bold text-slate-600 truncate uppercase tracking-widest font-mono">{asset.url}</p>
-                                         </div>
-                                      </button>
-                                   ))}
-                                 </>
-                               )}
+                               {hostedAssets.filter(a => a.title.toLowerCase().includes(vaultSearch.toLowerCase()) || a.fileName.toLowerCase().includes(vaultSearch.toLowerCase())).map(asset => (
+                                  <button 
+                                    key={asset.id} 
+                                    onClick={() => {
+                                      const newResource: Resource = {
+                                        id: Math.random().toString(36).substr(2, 9),
+                                        title: asset.title,
+                                        url: asset.url,
+                                        type: asset.mimeType.includes('video') ? 'video' : (asset.mimeType.includes('zip') ? 'zip' : 'link'),
+                                        description: `Vault Attachment: ${asset.fileName}`
+                                      };
+                                      const currentResources = [...(currentCourse?.lessons?.[editingLessonIdx!]?.resources || [])];
+                                      updateLesson(editingLessonIdx!, { resources: [...currentResources, newResource] });
+                                      setVaultSearch('');
+                                    }}
+                                    className="w-full text-left p-4 hover:bg-slate-950 rounded-2xl flex items-center space-x-4 group transition-all border border-transparent hover:border-slate-800"
+                                  >
+                                     <div className="w-10 h-10 rounded-xl bg-slate-950 flex items-center justify-center border border-slate-800 shrink-0">
+                                        <i className={`fas ${getAssetIcon(asset.mimeType)} text-xs opacity-50 group-hover:text-indigo-400 group-hover:opacity-100`}></i>
+                                     </div>
+                                     <div className="min-w-0 flex-1">
+                                        <p className="text-[10px] font-black text-white truncate">{asset.title}</p>
+                                        <p className="text-[7px] font-bold text-slate-600 truncate uppercase tracking-widest font-mono">{asset.url}</p>
+                                     </div>
+                                  </button>
+                               ))}
                             </div>
                          )}
                       </div>
@@ -602,7 +598,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                                className="bg-transparent border-none focus:ring-0 text-white font-black text-sm p-0 w-full outline-none" 
                                placeholder="Resource Title"
                              />
-                             <div className="flex items-center space-x-3 text-[9px] font-mono w-full">
+                             <div className="flex items-center space-x-3 text-[9px] font-mono w-full overflow-hidden">
                                 <span className={`px-2 py-0.5 rounded font-black uppercase shrink-0 ${res.url.includes('eduworld.ct.ws') ? 'bg-indigo-600/10 text-indigo-400' : 'bg-emerald-600/10 text-emerald-400'}`}>
                                    {res.url.includes('eduworld.ct.ws') ? 'Vault' : 'External'}
                                 </span>
@@ -619,7 +615,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                              <button 
                                onClick={() => { updatingResourceIdx.current = rIdx; resourceInputRef.current?.click(); }}
                                className="w-10 h-10 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-600/20 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all"
-                               title="Replace with File"
+                               title="Replace with Local File"
                              >
                                 <i className="fas fa-sync-alt text-[10px]"></i>
                              </button>
@@ -750,7 +746,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                         <i className="fas fa-search text-slate-700 mr-3 text-[10px] group-focus-within:text-indigo-400 transition-colors"></i>
                         <input 
                           type="text" 
-                          placeholder="Search modules..." 
+                          placeholder="Search modules by title..." 
                           value={moduleSearch}
                           onChange={e => setModuleSearch(e.target.value)}
                           className="bg-transparent border-none focus:ring-0 text-[10px] text-slate-300 font-bold w-full placeholder:text-slate-800 py-1"
@@ -763,8 +759,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                    }} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all self-end shadow-xl">+ New Module</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredLessons.map((lesson, idx) => {
-                    // Find actual index in original array
+                  {filteredLessonsForView.map((lesson) => {
                     const originalIdx = currentCourse.lessons!.findIndex(l => l.id === lesson.id);
                     return (
                       <div key={lesson.id} className={`bg-slate-950 border rounded-3xl p-5 flex flex-col justify-between group transition-all ${lesson.isExamMode ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-slate-800 hover:border-indigo-500/30'}`}>
@@ -784,7 +779,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                       </div>
                     );
                   })}
-                  {filteredLessons.length === 0 && (
+                  {filteredLessonsForView.length === 0 && (
                     <div className="col-span-full py-12 border-2 border-dashed border-slate-900 rounded-[32px] flex flex-col items-center justify-center opacity-40">
                         <i className="fas fa-magnifying-glass text-2xl mb-3 text-slate-700"></i>
                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">No matching modules found.</p>
