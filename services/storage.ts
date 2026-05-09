@@ -62,14 +62,21 @@ export const saveCourseToDB = async (course: Course): Promise<void> => {
 
   // Optimizing large binaries before storage
   const optimizedLessons = await Promise.all(course.lessons.map(async (lesson) => {
-    const isLargeBinary = lesson.videoUrl instanceof Blob || (typeof lesson.videoUrl === 'string' && lesson.videoUrl.startsWith('data:video/'));
-    if (isLargeBinary) {
-      const assetId = `shadow-${lesson.id}`;
+    // CRITICAL FIX: If it's already a string starting with http, it is a link. DO NOT convert to asset.
+    if (typeof lesson.videoUrl === 'string' && (lesson.videoUrl.startsWith('http') || lesson.videoUrl.startsWith('www.'))) {
+      return lesson;
+    }
+
+    // Only process actual file objects or data URIs into the vault
+    const isLocalBinary = lesson.videoUrl instanceof Blob || (typeof lesson.videoUrl === 'string' && lesson.videoUrl.startsWith('data:video/'));
+    
+    if (isLocalBinary) {
+      const assetId = `shadow-${lesson.id}-${Math.random().toString(36).substr(2, 4)}`;
       let blob = lesson.videoUrl instanceof Blob ? lesson.videoUrl : dataURLToBlob(lesson.videoUrl as string);
       if (blob) {
         const asset: HostedAsset = {
           id: assetId,
-          title: `Pointer for ${lesson.title}`,
+          title: `Vault Video: ${lesson.title}`,
           fileName: (lesson.videoUrl instanceof File) ? (lesson.videoUrl as File).name : `${lesson.id}.mp4`,
           data: blob,
           mimeType: blob.type,
@@ -77,20 +84,21 @@ export const saveCourseToDB = async (course: Course): Promise<void> => {
           createdAt: new Date(),
         };
         await saveHostedAsset(asset);
+        // Save the reference URL in the lesson instead of the binary
         return { ...lesson, videoUrl: asset.url };
       }
     }
     return lesson;
   }));
+  
   const optimizedCourse = { ...course, lessons: optimizedLessons };
 
   // Supabase Sync
   if (sb) {
-    // We assume a table 'courses' exists with columns: id (text), data (jsonb)
     try {
       const { error } = await sb.from('courses').upsert({ id: optimizedCourse.id, data: optimizedCourse });
-      if (error) console.error("Supabase Sync Error (Courses):", error);
-    } catch (e) { console.error("Supabase Exception:", e); }
+      if (error) console.error("Supabase Sync Error:", error);
+    } catch (e) {}
   }
 
   // Local IDB
@@ -109,10 +117,8 @@ export const getAllCoursesFromDB = async (): Promise<Course[]> => {
   if (sb) {
     try {
       const { data, error } = await sb.from('courses').select('data');
-      if (!error && data) {
-        return data.map(row => row.data);
-      }
-    } catch (e) { console.warn("Supabase fetch failed, falling back to IDB", e); }
+      if (!error && data) return data.map(row => row.data);
+    } catch (e) {}
   }
 
   return new Promise((resolve, reject) => {
@@ -126,10 +132,7 @@ export const getAllCoursesFromDB = async (): Promise<Course[]> => {
 export const deleteCourseFromDB = async (id: string): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
-
-  if (sb) {
-    try { await sb.from('courses').delete().eq('id', id); } catch (e) {}
-  }
+  if (sb) { try { await sb.from('courses').delete().eq('id', id); } catch (e) {} }
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction([STORE_NAME], 'readwrite');
@@ -145,14 +148,7 @@ export const saveHostedAsset = async (asset: HostedAsset): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
 
-  if (sb) {
-    try {
-      // NOTE: Storing large base64 in JSONB is not ideal for production but fits the user's request "save my data"
-      // without setting up Supabase Storage buckets complexity in this snippet.
-      // Table: assets (id text, data jsonb)
-      await sb.from('assets').upsert({ id: asset.id, data: asset });
-    } catch (e) {}
-  }
+  if (sb) { try { await sb.from('assets').upsert({ id: asset.id, data: asset }); } catch (e) {} }
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction([ASSET_STORE], 'readwrite');
@@ -165,7 +161,6 @@ export const saveHostedAsset = async (asset: HostedAsset): Promise<void> => {
 export const getAllHostedAssets = async (): Promise<HostedAsset[]> => {
   const db = await initDB();
   const sb = getSupabaseClient();
-
   if (sb) {
     try {
       const { data } = await sb.from('assets').select('data');
@@ -184,7 +179,6 @@ export const getAllHostedAssets = async (): Promise<HostedAsset[]> => {
 export const deleteHostedAsset = async (id: string): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
-
   if (sb) { try { await sb.from('assets').delete().eq('id', id); } catch (e) {} }
 
   return new Promise((resolve, reject) => {
@@ -200,9 +194,7 @@ export const deleteHostedAsset = async (id: string): Promise<void> => {
 export const saveWaitlistEntry = async (entry: WaitlistEntry): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
-  
   if (sb) { try { await sb.from('waitlist').upsert({ id: entry.id, data: entry }); } catch (e) {} }
-
   return new Promise((resolve, reject) => {
     const tx = db.transaction([WAITLIST_STORE], 'readwrite');
     const req = tx.objectStore(WAITLIST_STORE).put(entry);
@@ -214,14 +206,12 @@ export const saveWaitlistEntry = async (entry: WaitlistEntry): Promise<void> => 
 export const getWaitlistEntries = async (): Promise<WaitlistEntry[]> => {
   const db = await initDB();
   const sb = getSupabaseClient();
-  
   if (sb) {
     try {
       const { data } = await sb.from('waitlist').select('data');
       if (data) return data.map(row => row.data);
     } catch (e) {}
   }
-
   return new Promise((resolve, reject) => {
     const tx = db.transaction([WAITLIST_STORE], 'readonly');
     const req = tx.objectStore(WAITLIST_STORE).getAll();
@@ -230,6 +220,7 @@ export const getWaitlistEntries = async (): Promise<WaitlistEntry[]> => {
   });
 };
 
+// --- FIX: Ensure deleteWaitlistEntry is properly exported ---
 export const deleteWaitlistEntry = async (id: string): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
@@ -249,7 +240,6 @@ export const saveAppVersion = async (version: AppVersion): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
   if (sb) { try { await sb.from('app_versions').upsert({ id: version.id, data: version }); } catch (e) {} }
-
   return new Promise((resolve, reject) => {
     const tx = db.transaction([APP_VERSIONS_STORE], 'readwrite');
     const req = tx.objectStore(APP_VERSIONS_STORE).put(version);
@@ -267,7 +257,6 @@ export const getAllAppVersions = async (): Promise<AppVersion[]> => {
       if (data) return data.map(row => row.data);
     } catch (e) {}
   }
-
   return new Promise((resolve, reject) => {
     const tx = db.transaction([APP_VERSIONS_STORE], 'readonly');
     const req = tx.objectStore(APP_VERSIONS_STORE).getAll();
@@ -280,7 +269,6 @@ export const deleteAppVersion = async (id: string): Promise<void> => {
   const db = await initDB();
   const sb = getSupabaseClient();
   if (sb) { try { await sb.from('app_versions').delete().eq('id', id); } catch (e) {} }
-
   return new Promise((resolve, reject) => {
     const tx = db.transaction([APP_VERSIONS_STORE], 'readwrite');
     const req = tx.objectStore(APP_VERSIONS_STORE).delete(id);
@@ -289,7 +277,7 @@ export const deleteAppVersion = async (id: string): Promise<void> => {
   });
 };
 
-// --- DB CONFIGS (Local Only) ---
+// --- DB CONFIGS ---
 
 export const saveDatabaseConfig = async (config: DatabaseConfig): Promise<void> => {
   const db = await initDB();

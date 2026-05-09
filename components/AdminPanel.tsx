@@ -454,6 +454,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                     </div>
                   </div>
 
+                  {/* Instructor Feedback Field */}
+                  <div className="bg-slate-900 rounded-[24px] md:rounded-[32px] border border-slate-800 p-6 md:p-8">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-6">Instructor Feedback (Post-Submission)</h3>
+                    <textarea 
+                      value={currentLesson.instructorNotes || ''} 
+                      onChange={e => updateLesson(editingLessonIdx!, { instructorNotes: e.target.value })}
+                      placeholder="Add notes or feedback shown after student submits the quiz/exam..." 
+                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-slate-400 outline-none focus:border-indigo-500/30 text-sm h-32 no-scrollbar"
+                    />
+                  </div>
+
                   <div className="bg-slate-900 rounded-[24px] md:rounded-[32px] border border-slate-800 p-6 md:p-8 space-y-6">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Assessment Logic</h3>
@@ -513,7 +524,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                        <input type="file" ref={resourceInputRef} className="hidden" onChange={handleResourceUpload} />
                     </div>
 
-                    {/* Unified Link Attachment System */}
                     <div className="space-y-4">
                       <div className="relative">
                          <div className="flex flex-col md:flex-row gap-2">
