@@ -113,6 +113,36 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT') return;
+      if (videoSourceInfo.type !== 'native') return;
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        skipForward();
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        skipBackward();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lessonVideoUrl]);
+
+  useEffect(() => {
+    if (videoRef.current && videoSourceInfo.type === 'native') {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed, lessonVideoUrl]);
+
   const resolveAssetUrl = async (url: any): Promise<string> => {
     if (!url) return '';
     if (url instanceof Blob) return URL.createObjectURL(url);
@@ -197,20 +227,25 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
     else await document.exitFullscreen();
   };
 
-  const skipForward = () => {
+  const skipForward = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, duration);
+    videoRef.current.currentTime += 10;
   };
 
-  const skipBackward = () => {
+  const skipBackward = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 0);
+    videoRef.current.currentTime -= 10;
   };
 
-  const toggleSpeed = () => {
+  const toggleSpeed = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const newSpeed = playbackSpeed === 1 ? 2 : 1;
     setPlaybackSpeed(newSpeed);
-    if (videoRef.current) videoRef.current.playbackRate = newSpeed;
+    if (videoRef.current) {
+      videoRef.current.playbackRate = newSpeed;
+    }
   };
 
   const handleOpenResource = async (res: Resource) => {
@@ -320,10 +355,10 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
                     <div className="relative mb-3 md:mb-6"><div className="w-full h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)]" style={{ width: `${progress}%` }}></div></div></div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3 md:space-x-8 text-white">
-                        <button onClick={skipBackward} className="text-xs md:text-lg hover:text-indigo-400 transition-colors p-1 md:p-2" title="Back 10s"><i className="fas fa-rotate-left"></i></button>
-                        <button onClick={togglePlay} className="text-sm md:text-xl hover:text-indigo-400 transition-colors p-1 md:p-2"><i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i></button>
-                        <button onClick={skipForward} className="text-xs md:text-lg hover:text-indigo-400 transition-colors p-1 md:p-2" title="Forward 10s"><i className="fas fa-rotate-right"></i></button>
-                        <span className="text-[8px] md:text-[11px] font-black tracking-[0.1em] text-slate-400">{Math.floor((videoRef.current?.currentTime || 0) / 60)}:{(Math.floor((videoRef.current?.currentTime || 0) % 60)).toString().padStart(2, '0')} <span className="mx-1 md:mx-2 opacity-30">/</span> {Math.floor(duration / 60)}:{(Math.floor(duration % 60)).toString().padStart(2, '0')}</span>
+                        <button onClick={skipBackward} className="text-sm md:text-2xl hover:text-indigo-400 transition-colors p-2 md:p-3" title="Back 10s"><i className="fas fa-rotate-left"></i></button>
+                        <button onClick={togglePlay} className="text-lg md:text-3xl hover:text-indigo-400 transition-colors p-2 md:p-3"><i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i></button>
+                        <button onClick={skipForward} className="text-sm md:text-2xl hover:text-indigo-400 transition-colors p-2 md:p-3" title="Forward 10s"><i className="fas fa-rotate-right"></i></button>
+                        <span className="text-[10px] md:text-sm font-black tracking-[0.1em] text-slate-400 tabular-nums">{Math.floor((videoRef.current?.currentTime || 0) / 60)}:{(Math.floor((videoRef.current?.currentTime || 0) % 60)).toString().padStart(2, '0')} <span className="mx-1 md:mx-2 opacity-30">/</span> {Math.floor(duration / 60)}:{(Math.floor(duration % 60)).toString().padStart(2, '0')}</span>
                       </div>
                       <div className="flex items-center space-x-2 md:space-x-4">
                         <button onClick={toggleSpeed} className="px-2 py-1 md:px-3 md:py-1.5 bg-slate-800/80 hover:bg-indigo-600 border border-slate-700 rounded-lg text-[8px] md:text-[10px] font-black text-white uppercase tracking-widest transition-all">

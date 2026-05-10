@@ -287,7 +287,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
 
   const updateLesson = (idx: number, updates: Partial<Lesson>) => {
     setCurrentCourse(prev => {
-      if (!prev?.lessons) return prev;
+      if (!prev || !prev.lessons) return prev;
       const lessons = [...prev.lessons];
       lessons[idx] = { ...lessons[idx], ...updates };
       return { ...prev, lessons };
@@ -302,27 +302,47 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
       options: ['Option A', 'Option B', 'Option C', 'Option D'],
       correctAnswer: 0
     };
-    const currentQuiz = currentCourse?.lessons?.[editingLessonIdx]?.quiz || [];
-    updateLesson(editingLessonIdx, { quiz: [...currentQuiz, newQuestion] });
+    setCurrentCourse(prev => {
+      if (!prev || !prev.lessons) return prev;
+      const lessons = [...prev.lessons];
+      const lesson = { ...lessons[editingLessonIdx] };
+      const currentQuiz = lesson.quiz || [];
+      lesson.quiz = [...currentQuiz, newQuestion];
+      lessons[editingLessonIdx] = lesson;
+      return { ...prev, lessons };
+    });
   };
 
   const updateQuizQuestion = (qIdx: number, updates: Partial<QuizQuestion>) => {
     if (editingLessonIdx === null) return;
-    const currentQuiz = [...(currentCourse?.lessons?.[editingLessonIdx]?.quiz || [])];
-    currentQuiz[qIdx] = { ...currentQuiz[qIdx], ...updates };
-    updateLesson(editingLessonIdx, { quiz: currentQuiz });
+    setCurrentCourse(prev => {
+      if (!prev || !prev.lessons) return prev;
+      const lessons = [...prev.lessons];
+      const lesson = { ...lessons[editingLessonIdx] };
+      const currentQuiz = [...(lesson.quiz || [])];
+      currentQuiz[qIdx] = { ...currentQuiz[qIdx], ...updates };
+      lesson.quiz = currentQuiz;
+      lessons[editingLessonIdx] = lesson;
+      return { ...prev, lessons };
+    });
   };
 
   const removeQuizQuestion = (qIdx: number) => {
     if (editingLessonIdx === null) return;
-    const currentQuiz = (currentCourse?.lessons?.[editingLessonIdx]?.quiz || []).filter((_, i) => i !== qIdx);
-    updateLesson(editingLessonIdx, { quiz: currentQuiz });
+    setCurrentCourse(prev => {
+      if (!prev || !prev.lessons) return prev;
+      const lessons = [...prev.lessons];
+      const lesson = { ...lessons[editingLessonIdx] };
+      lesson.quiz = (lesson.quiz || []).filter((_, i) => i !== qIdx);
+      lessons[editingLessonIdx] = lesson;
+      return { ...prev, lessons };
+    });
   };
 
   const updateResource = (rIdx: number, updates: Partial<Resource>) => {
     if (editingLessonIdx === null) return;
     setCurrentCourse(prev => {
-      if (!prev?.lessons) return prev;
+      if (!prev || !prev.lessons) return prev;
       const lessons = [...prev.lessons];
       const lesson = { ...lessons[editingLessonIdx] };
       const currentResources = [...(lesson.resources || [])];
@@ -336,11 +356,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
   const removeResource = (rIdx: number) => {
     if (editingLessonIdx === null) return;
     setCurrentCourse(prev => {
-      if (!prev?.lessons) return prev;
+      if (!prev || !prev.lessons) return prev;
       const lessons = [...prev.lessons];
       const lesson = { ...lessons[editingLessonIdx] };
-      const currentResources = (lesson.resources || []).filter((_, i) => i !== rIdx);
-      lesson.resources = currentResources;
+      lesson.resources = (lesson.resources || []).filter((_, i) => i !== rIdx);
       lessons[editingLessonIdx] = lesson;
       return { ...prev, lessons };
     });
@@ -368,20 +387,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
   };
 
   const addSubSubject = (subjectId: string) => {
-    setCurrentCourse(prev => ({
-      ...prev,
-      subjects: (prev?.subjects || []).map(s => s.id === subjectId ? { ...s, subSubjects: [...s.subSubjects, { id: Math.random().toString(36).substr(2, 9), name: 'New Sub-group', units: [] }] } : s)
-    }));
+    setCurrentCourse(prev => {
+      if (!prev) return prev;
+      const subjects = (prev.subjects || []).map(s => 
+        s.id === subjectId ? { ...s, subSubjects: [...s.subSubjects, { id: Math.random().toString(36).substr(2, 9), name: 'New Sub-group', units: [] }] } : s
+      );
+      return { ...prev, subjects };
+    });
   };
 
   const addUnit = (subjId: string, ssId: string) => {
-    setCurrentCourse(prev => ({
-      ...prev,
-      subjects: (prev?.subjects || []).map(s => s.id === subjId ? { 
-        ...s, 
-        subSubjects: s.subSubjects.map(ss => ss.id === ssId ? { ...ss, units: [...(ss.units || []), { id: Math.random().toString(36).substr(2, 9), name: 'New Unit' }] } : ss) 
-      } : s)
-    }));
+    setCurrentCourse(prev => {
+      if (!prev) return prev;
+      const subjects = (prev.subjects || []).map(s => 
+        s.id === subjId ? { 
+          ...s, 
+          subSubjects: s.subSubjects.map(ss => 
+            ss.id === ssId ? { ...ss, units: [...(ss.units || []), { id: Math.random().toString(36).substr(2, 9), name: 'New Unit' }] } : ss
+          ) 
+        } : s
+      );
+      return { ...prev, subjects };
+    });
   };
 
   const handleCancel = () => {
@@ -765,7 +792,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                    </div>
                    <button onClick={() => {
                       const newLesson: Lesson = { id: Math.random().toString(36).substr(2, 9), title: 'New Module', content: '<p>Start building...</p>', duration: '10:00', quiz: [], resources: [] };
-                      setCurrentCourse(prev => ({ ...prev, lessons: [...(prev?.lessons || []), newLesson] }));
+                      setCurrentCourse(prev => {
+                        const lessons = [...(prev?.lessons || []), newLesson];
+                        setEditingLessonIdx(lessons.length - 1);
+                        setModuleSearch('');
+                        return { ...prev, lessons };
+                      });
                    }} className="w-full sm:w-auto px-6 py-3 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all self-end shadow-xl">+ New Module</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
