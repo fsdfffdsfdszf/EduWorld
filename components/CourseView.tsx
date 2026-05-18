@@ -11,9 +11,10 @@ interface CourseViewProps {
   onQuizComplete: (lessonId: string, attempt: QuizAttempt) => void;
   onNotesUpdate: (lessonId: string, content: string) => void;
   onAddResource: (lessonId: string, resource: Resource) => void;
+  onLessonChange?: (lessonId: string) => void;
 }
 
-const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLessonId, onQuizComplete, onNotesUpdate }) => {
+const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLessonId, onQuizComplete, onNotesUpdate, onLessonChange }) => {
   const [activeLessonId, setActiveLessonId] = useState(initialLessonId || course.lessons[0]?.id);
   const [activeTab, setActiveTab] = useState<'overview' | 'resources' | 'quiz' | 'notes'>('overview');
   const [isAiOpen, setIsAiOpen] = useState(false);
@@ -41,6 +42,18 @@ const CourseView: React.FC<CourseViewProps> = ({ course, user, onBack, initialLe
   const [isCinemaMode, setIsCinemaMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+
+  useEffect(() => {
+    if (initialLessonId && initialLessonId !== activeLessonId) {
+      setActiveLessonId(initialLessonId);
+    }
+  }, [initialLessonId]);
+
+  useEffect(() => {
+    if (activeLessonId && onLessonChange) {
+      onLessonChange(activeLessonId);
+    }
+  }, [activeLessonId, onLessonChange]);
 
   const activeLessonIndex = useMemo(() => 
     course.lessons.findIndex(l => l.id === activeLessonId)

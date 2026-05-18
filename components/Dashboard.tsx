@@ -1,46 +1,39 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { AppRoute, Course, SubjectGroup, SubSubject, Unit, Lesson, User, QuizAttempt } from '../types';
 
 interface DashboardProps {
   user: User;
   onCourseClick: (id: string, lessonId?: string) => void;
-  setRoute: (route: AppRoute) => void;
   courses: Course[];
-  selectedCourseId: string | null;
-  onSelectCourse: (id: string) => void;
-  selectedSubjectId: string | null;
-  setSelectedSubjectId: (id: string | null) => void;
-  selectedSubSubjectId: string | null;
-  setSelectedSubSubjectId: (id: string | null) => void;
-  selectedUnitId: string | null;
-  setSelectedUnitId: (id: string | null) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   user,
   onCourseClick, 
-  setRoute, 
-  courses, 
-  selectedCourseId, 
-  onSelectCourse,
-  selectedSubjectId,
-  setSelectedSubjectId,
-  selectedSubSubjectId,
-  setSelectedSubSubjectId,
-  selectedUnitId,
-  setSelectedUnitId
+  courses
 }) => {
+  const { courseId, subjectId, subId, unitId } = useParams();
+  const navigate = useNavigate();
   const [showCoursePicker, setShowCoursePicker] = useState(false);
   const [lessonSearch, setLessonSearch] = useState('');
   
-  const activeCourse = useMemo(() => 
-    courses.find(c => c.id === (selectedCourseId || courses[0]?.id)) || null
-  , [courses, selectedCourseId]);
+  const activeCourse = useMemo(() => {
+    if (courseId) return courses.find(c => c.id === courseId) || null;
+    return courses[0] || null;
+  }, [courses, courseId]);
 
-  const selectedSubject = useMemo(() => activeCourse?.subjects?.find(s => s.id === selectedSubjectId) || null, [activeCourse, selectedSubjectId]);
-  const selectedSubSubject = useMemo(() => selectedSubject?.subSubjects?.find(ss => ss.id === selectedSubSubjectId) || null, [selectedSubject, selectedSubSubjectId]);
-  const selectedUnit = useMemo(() => selectedSubSubject?.units?.find(u => u.id === selectedUnitId) || null, [selectedSubSubject, selectedUnitId]);
+  // Sync route if accessing /dashboard and there are courses
+  useEffect(() => {
+    if (!courseId && courses.length > 0) {
+      navigate(`/dashboard/${courses[0].id}`, { replace: true });
+    }
+  }, [courseId, courses, navigate]);
+
+  const selectedSubject = useMemo(() => activeCourse?.subjects?.find(s => s.id === subjectId) || null, [activeCourse, subjectId]);
+  const selectedSubSubject = useMemo(() => selectedSubject?.subSubjects?.find(ss => ss.id === subId) || null, [selectedSubject, subId]);
+  const selectedUnit = useMemo(() => selectedSubSubject?.units?.find(u => u.id === unitId) || null, [selectedSubSubject, unitId]);
 
   const timeRemaining = useMemo(() => {
     if (!activeCourse?.expiryDate) return null;
@@ -63,39 +56,41 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         <h2 className="text-xl md:text-3xl font-black text-slate-100 mb-4 px-4 tracking-tighter">Initialize your learning portal.</h2>
         <p className="text-slate-500 mb-8 max-w-md text-[11px] md:text-sm font-medium uppercase tracking-widest px-4">Enroll in expert programs to start your neural journey.</p>
-        <button onClick={() => setRoute(AppRoute.COURSES)} className="w-full sm:w-auto px-10 py-5 bg-indigo-600 text-white rounded-[20px] font-black uppercase text-xs tracking-widest shadow-2xl shadow-indigo-600/30 active:scale-95 transition-all">Launch Catalog</button>
+        <button onClick={() => navigate('/explore')} className="w-full sm:w-auto px-10 py-5 bg-indigo-600 text-white rounded-[20px] font-black uppercase text-xs tracking-widest shadow-2xl shadow-indigo-600/30 active:scale-95 transition-all">Launch Catalog</button>
       </div>
     );
   }
 
+  const handleSelectCourse = (id: string) => {
+    navigate(`/dashboard/${id}`);
+    setShowCoursePicker(false);
+  };
+
   const handleSubjectClick = (subj: SubjectGroup) => {
-    setSelectedSubjectId(subj.id);
-    setSelectedSubSubjectId(null);
-    setSelectedUnitId(null);
+    navigate(`/dashboard/${activeCourse?.id}/subject/${subj.id}`);
   };
 
   const handleSubSubjectClick = (ss: SubSubject) => {
-    setSelectedSubSubjectId(ss.id);
-    setSelectedUnitId(null);
+    navigate(`/dashboard/${activeCourse?.id}/subject/${subjectId}/sub/${ss.id}`);
   };
 
   const handleUnitClick = (unit: Unit) => {
-    setSelectedUnitId(unit.id);
+    navigate(`/dashboard/${activeCourse?.id}/subject/${subjectId}/sub/${subId}/unit/${unit.id}`);
   };
 
   const handleBack = () => {
-    if (selectedUnit) setSelectedUnitId(null);
-    else if (selectedSubSubject) setSelectedSubSubjectId(null);
-    else if (selectedSubject) setSelectedSubjectId(null);
+    if (selectedUnit) navigate(`/dashboard/${activeCourse?.id}/subject/${subjectId}/sub/${subId}`);
+    else if (selectedSubSubject) navigate(`/dashboard/${activeCourse?.id}/subject/${subjectId}`);
+    else if (selectedSubject) navigate(`/dashboard/${activeCourse?.id}`);
   };
 
   const filteredLessons = useMemo(() => {
     let list = [];
     if (selectedUnit) {
       list = activeCourse.lessons.filter(l => 
-        l.subjectId === selectedSubjectId && 
-        l.subSubjectId === selectedSubSubjectId &&
-        l.unitId === selectedUnitId
+        l.subjectId === subjectId && 
+        l.subSubjectId === subId &&
+        l.unitId === unitId
       );
     } else if (!selectedSubject) {
       list = activeCourse.lessons.filter(l => !l.subjectId);
@@ -105,7 +100,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       list = list.filter(l => l.title.toLowerCase().includes(lessonSearch.toLowerCase()));
     }
     return list;
-  }, [activeCourse.lessons, selectedSubjectId, selectedSubSubjectId, selectedUnitId, selectedUnit, selectedSubject, lessonSearch]);
+  }, [activeCourse.lessons, subjectId, subId, unitId, selectedUnit, selectedSubject, lessonSearch]);
 
   const mainTitle = useMemo(() => {
     if (selectedUnit) return selectedUnit.name;
@@ -124,7 +119,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-6 md:space-y-12 animate-in fade-in duration-500 max-w-6xl mx-auto">
       {/* Top Bar */}
-      {!selectedSubjectId && (
+      {!subjectId && (
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 px-1 md:px-0">
           <div>
             <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">{greeting}, {user.name.split(' ')[0]}</h2>
@@ -149,13 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   {courses.map(c => (
                     <button 
                       key={c.id}
-                      onClick={() => {
-                        onSelectCourse(c.id);
-                        setShowCoursePicker(false);
-                        setSelectedSubjectId(null);
-                        setSelectedSubSubjectId(null);
-                        setSelectedUnitId(null);
-                      }}
+                      onClick={() => handleSelectCourse(c.id)}
                       className={`w-full text-left p-4 rounded-2xl transition-all flex items-center space-x-4 group border ${activeCourse.id === c.id ? 'bg-indigo-600/10 border-indigo-500/20' : 'hover:bg-slate-800 border-transparent'}`}
                     >
                       <img src={c.thumbnail} className="w-10 h-10 rounded-xl object-cover border border-slate-800 group-hover:scale-105 transition-transform" alt="" />
@@ -191,11 +180,11 @@ const Dashboard: React.FC<DashboardProps> = ({
             <div className="flex items-center justify-center space-x-2 text-[8px] md:text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] px-10">
               {selectedSubject && (
                 <>
-                  <span className="hover:text-indigo-400 cursor-pointer transition-colors truncate max-w-[80px] md:max-w-none" onClick={() => {setSelectedSubSubjectId(null); setSelectedUnitId(null);}}>{selectedSubject.name}</span>
+                  <span className="hover:text-indigo-400 cursor-pointer transition-colors truncate max-w-[80px] md:max-w-none" onClick={() => navigate(`/dashboard/${activeCourse?.id}/subject/${selectedSubject.id}`)}>{selectedSubject.name}</span>
                   {selectedSubSubject && (
                     <>
                       <i className="fas fa-chevron-right text-[7px] opacity-30 shrink-0"></i>
-                      <span className="hover:text-indigo-400 cursor-pointer transition-colors truncate max-w-[80px] md:max-w-none" onClick={() => setSelectedUnitId(null)}>{selectedSubSubject.name}</span>
+                      <span className="hover:text-indigo-400 cursor-pointer transition-colors truncate max-w-[80px] md:max-w-none" onClick={() => navigate(`/dashboard/${activeCourse?.id}/subject/${selectedSubject.id}/sub/${selectedSubSubject.id}`)}>{selectedSubSubject.name}</span>
                     </>
                   )}
                 </>

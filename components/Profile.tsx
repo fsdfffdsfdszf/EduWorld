@@ -1,19 +1,20 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Course, AppVersion, AppRoute } from '../types';
+import { useNavigate } from 'react-router-dom';
+import { User, Course, AppVersion } from '../types';
 import CourseCard from './CourseCard';
 import { getAllAppVersions } from '../services/storage';
 
 interface ProfileProps {
   user: User;
   courses: Course[];
-  onCourseClick: (id: string) => void;
+  onCourseClick: (id: string, lessonId?: string) => void;
   onUpdateUser: (user: User) => void;
   onLogout: () => void;
-  setRoute: (route: AppRoute) => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdateUser, onLogout, setRoute }) => {
+const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdateUser, onLogout }) => {
+  const navigate = useNavigate();
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [appVersions, setAppVersions] = useState<AppVersion[]>([]);
@@ -26,7 +27,6 @@ const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdat
   useEffect(() => {
     const loadVersions = async () => {
       const data = await getAllAppVersions();
-      // Sort by date descending
       setAppVersions(data.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()));
     };
     loadVersions();
@@ -102,7 +102,7 @@ const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdat
         </div>
 
         <div className="w-full md:w-auto flex flex-col space-y-3 z-10">
-          <button onClick={() => setRoute(AppRoute.DOWNLOADS)} className="w-full md:w-auto px-10 py-4.5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-xl active:scale-95 transition-all">Download Portal</button>
+          <button onClick={() => navigate('/downloads')} className="w-full md:w-auto px-10 py-4.5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-xl active:scale-95 transition-all">Download Portal</button>
           <button onClick={() => setIsSettingsOpen(true)} className="w-full md:w-auto px-10 py-4.5 bg-slate-100 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-xl shadow-xl active:scale-95 transition-all">Settings</button>
           <button onClick={onLogout} className="w-full px-10 py-4 bg-rose-600/10 text-rose-500 border border-rose-900/30 font-black text-[9px] uppercase tracking-widest rounded-xl active:scale-95 transition-all">Reset All Local Data</button>
         </div>
@@ -145,7 +145,7 @@ const Profile: React.FC<ProfileProps> = ({ user, courses, onCourseClick, onUpdat
                         </div>
                         <h3 className="text-xl font-black tracking-tight mb-4 truncate">{latestVersion.title}</h3>
                         <button 
-                          onClick={() => setRoute(AppRoute.DOWNLOADS)}
+                          onClick={() => navigate('/downloads')}
                           className="w-full py-3 bg-white text-indigo-600 rounded-xl flex items-center justify-center font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 active:scale-95 transition-all shadow-lg"
                         >
                           <i className="fas fa-external-link mr-2.5"></i> Open Portal

@@ -3,17 +3,17 @@ import React from 'react';
 import { AppRoute, User } from '../types';
 
 interface SidebarProps {
-  currentRoute: AppRoute;
+  currentPath: string;
   user: User;
-  setRoute: (route: AppRoute) => void;
+  setRoute: (route: string) => void;
   onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentRoute, user, setRoute, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPath, user, setRoute, onLogout }) => {
   const navItems = [
-    { id: AppRoute.DASHBOARD, label: 'Dashboard', icon: 'fa-house' },
-    { id: AppRoute.COURSES, label: 'Explore Courses', icon: 'fa-compass' },
-    { id: AppRoute.PROFILE, label: 'My Profile', icon: 'fa-user' },
+    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: 'fa-house' },
+    { id: 'explore', path: '/explore', label: 'Explore Courses', icon: 'fa-compass' },
+    { id: 'profile', path: '/profile', label: 'My Profile', icon: 'fa-user' },
   ];
 
   return (
@@ -34,12 +34,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRoute, user, setRoute, onLogou
             key={item.id}
             onClick={() => setRoute(item.id)}
             className={`w-full flex items-center px-5 py-4 text-sm font-bold rounded-2xl transition-all group ${
-              currentRoute === item.id
+              currentPath.startsWith(item.path)
                 ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/10'
                 : 'text-slate-500 hover:bg-slate-900 hover:text-white'
             }`}
           >
-            <i className={`fas ${item.icon} w-6 mr-3 text-lg transition-colors ${currentRoute === item.id ? 'text-indigo-400' : 'text-slate-600 group-hover:text-indigo-400'}`}></i>
+            <i className={`fas ${item.icon} w-6 mr-3 text-lg transition-colors ${currentPath.startsWith(item.path) ? 'text-indigo-400' : 'text-slate-600 group-hover:text-indigo-400'}`}></i>
             {item.label}
           </button>
         ))}
@@ -48,9 +48,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRoute, user, setRoute, onLogou
           <div className="mt-10">
             <p className="px-4 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 opacity-50">ADMINISTRATION</p>
             <button
-              onClick={() => setRoute(AppRoute.ADMIN)}
+              onClick={() => setRoute('admin')}
               className={`w-full flex items-center px-5 py-4 text-sm font-bold rounded-2xl transition-all mb-2 ${
-                currentRoute === AppRoute.ADMIN
+                currentPath.startsWith('/admin')
                   ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-600/30'
                   : 'text-slate-500 hover:bg-slate-900 hover:text-white'
               }`}
@@ -59,9 +59,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentRoute, user, setRoute, onLogou
               Admin Panel
             </button>
             <button
-              onClick={() => setRoute(AppRoute.USERS)}
+              onClick={() => setRoute('users')}
               className={`w-full flex items-center px-5 py-4 text-sm font-bold rounded-2xl transition-all mb-2 ${
-                currentRoute === AppRoute.USERS
+                currentPath === '/users'
                   ? 'bg-indigo-600 text-white shadow-2xl shadow-indigo-600/30'
                   : 'text-slate-500 hover:bg-slate-900 hover:text-white'
               }`}

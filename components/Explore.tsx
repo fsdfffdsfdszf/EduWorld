@@ -1,23 +1,26 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Course } from '../types';
 import CourseCard from './CourseCard';
 
 interface ExploreProps {
-  onCourseClick: (id: string) => void;
+  onCourseClick: (id: string, lessonId?: string) => void;
   courses: Course[];
 }
 
 const Explore: React.FC<ExploreProps> = ({ onCourseClick, courses }) => {
-  const [filter, setFilter] = useState('All');
+  const { category } = useParams();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'All' | 'Available' | 'Locked'>('All');
 
+  const currentCategory = category || 'All';
   const dynamicCategories = ['All', ...new Set(courses.map(c => c.category || 'Academic'))];
 
   const filteredCourses = useMemo(() => {
     return courses.filter(c => {
-      const matchesCategory = filter === 'All' || c.category === filter;
+      const matchesCategory = currentCategory === 'All' || c.category === currentCategory;
       const matchesSearch = c.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                            c.instructor.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesAvailability = availabilityFilter === 'All' || 
@@ -26,7 +29,12 @@ const Explore: React.FC<ExploreProps> = ({ onCourseClick, courses }) => {
       
       return matchesCategory && matchesSearch && matchesAvailability;
     });
-  }, [courses, filter, searchTerm, availabilityFilter]);
+  }, [courses, currentCategory, searchTerm, availabilityFilter]);
+
+  const setFilter = (cat: string) => {
+    if (cat === 'All') navigate('/explore');
+    else navigate(`/explore/category/${cat}`);
+  };
 
   return (
     <div className="space-y-8 md:space-y-12 animate-in fade-in pb-12">
@@ -66,7 +74,7 @@ const Explore: React.FC<ExploreProps> = ({ onCourseClick, courses }) => {
             key={cat}
             onClick={() => setFilter(cat)}
             className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-              filter === cat 
+              currentCategory === cat 
                 ? 'bg-indigo-600 text-white border-indigo-600 shadow-xl' 
                 : 'bg-slate-900 text-slate-500 border-slate-800 hover:border-slate-700'
             }`}
