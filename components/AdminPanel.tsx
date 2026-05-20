@@ -136,7 +136,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
       subjects: currentCourse.subjects || [],
       roadmap: currentCourse.roadmap || [],
       supplementalContent: currentCourse.supplementalContent || [],
-      expiryDate: currentCourse.expiryDate
+      expiryDate: currentCourse.expiryDate,
+      slug: currentCourse.slug || ''
     };
     
     const isExisting = courses.some(c => c.id === finalCourse.id);
@@ -742,6 +743,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ courses, initialEditCourseId, o
                     <div className="space-y-2">
                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Program Title</label>
                       <input type="text" value={currentCourse.title || ''} onChange={e => setCurrentCourse({ ...currentCourse!, title: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white font-bold focus:border-indigo-500 outline-none text-sm" />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center ml-1">
+                        <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest">Program Slug (URL Name)</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const genSlug = (currentCourse.title || '')
+                              .toLowerCase()
+                              .trim()
+                              .replace(/[^\w\s-]/g, '')
+                              .replace(/[\s_-]+/g, '-')
+                              .replace(/^-+|-+$/g, '');
+                            setCurrentCourse({ ...currentCourse!, slug: genSlug });
+                          }}
+                          className="text-[8px] font-black uppercase text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          Generate from Title
+                        </button>
+                      </div>
+                      <input 
+                        type="text" 
+                        value={currentCourse.slug || ''} 
+                        onChange={e => setCurrentCourse({ ...currentCourse!, slug: e.target.value })} 
+                        placeholder="e.g. intro-to-chem" 
+                        className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-white font-bold focus:border-indigo-500 outline-none text-sm font-mono placeholder:text-slate-800" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <label className="text-[9px] font-black text-slate-600 uppercase tracking-widest ml-1">Category</label>

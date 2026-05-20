@@ -128,6 +128,7 @@ export interface DatabaseConfig {
 export interface Course {
   id: string;
   title: string;
+  slug?: string;
   description: string;
   instructor: string;
   instructorAvatar: string;
